@@ -38,3 +38,4 @@ tlatools/org.lamport.tlatools/test-model/test.out
 .Rproj.user
 *.swp
 *.swo
+/.metadata/

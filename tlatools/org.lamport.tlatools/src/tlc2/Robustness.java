@@ -54,21 +54,47 @@ public class Robustness {
     	// TODO add functionality for compareSpecToEnvironment
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
-    	if (args.length == 4 && args[0].equals("--prop")) {
-    		compareSpecToProperty(args, jsonStrs, jsonLists);
+    	
+    	if (args.length > 0 && args[0].equals("--april")) {
+    		aprilsMethod(args);
+    	} else {
+    	  	
+        	if (args.length == 4 && args[0].equals("--prop")) {
+        		compareSpecToProperty(args, jsonStrs, jsonLists);
+        	}
+        	else if (args.length == 6 && args[0].equals("--env")) {
+        		compareSpecToEnvironment(args, jsonStrs, jsonLists);
+        	}
+        	else if (args.length == 6 && args[0].equals("--cmp")) {
+        		compareSpecs(args, jsonStrs, jsonLists);
+        	}
+        	else {
+        		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
+        	}
+        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
-    	else if (args.length == 6 && args[0].equals("--env")) {
-    		compareSpecToEnvironment(args, jsonStrs, jsonLists);
-    	}
-    	else if (args.length == 6 && args[0].equals("--cmp")) {
-    		compareSpecs(args, jsonStrs, jsonLists);
-    	}
-    	else {
-    		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
-    	}
-    	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+  
     }
     
+    public static void aprilsMethod(String[] args) {
+    	final String spec = args[1];
+    	final String config = args[2];
+    	
+    	TLC tlc1 = new TLC("spec");
+    	TLC.runTLC(spec, config, tlc1);
+//    	Set<EKState> init = tlc1.getKripke().getInitStates();
+//    	Set<Pair<EKState,EKState>> next = tlc1.getKripke().getNextStates();
+//    	
+//    	System.out.println("Initial States: ");
+//    	for (EKState currInit : init) {
+//    		System.out.println(currInit.toString());
+//    		System.out.println();
+//    	}
+//    	System.out.println("Next States: ");
+//    	for (Pair<EKState,EKState> currPair : next) {
+//    		System.out.println(currPair);
+//    	}
+    }
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
     private static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
     	final String outputLoc = args[1] + "/";
