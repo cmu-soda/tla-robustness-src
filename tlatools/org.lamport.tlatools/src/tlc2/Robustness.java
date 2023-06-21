@@ -82,7 +82,7 @@ public class Robustness {
     	final String tla2 = args[3];
     	final String cfg2 = args[4];
     	
-    	ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2);
+    	System.out.println(ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2));
     }
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
     private static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
