@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import tlc2.RobustDiffRep.SpecScope;
 import tlc2.tool.Action;
@@ -52,6 +53,7 @@ public class Robustness {
 	 */
     public static void calc(String[] args) {
     	// TODO add functionality for compareSpecToEnvironment
+    	/*
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
     	if (args.length == 4 && args[0].equals("--prop")) {
@@ -67,6 +69,58 @@ public class Robustness {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
     	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+    	*/
+    	ianTest(args);
+    }
+    
+    private static void ianTest(String[] args) {
+    	final String tla1 = args[0];
+    	final String cfg1 = args[1];
+    	final String tla2 = args[2];
+    	final String cfg2 = args[3];
+    	
+    	final Set<String> act1 = getSpecActions(tla1, cfg1, "tlc1");
+    	final Set<String> act2 = getSpecActions(tla2, cfg2, "tlc2");
+    	final Set<String> mutualActs = Utils.intersection(act1, act2);
+    	final Set<String> onlyAct1 = Utils.setMinus(act1, mutualActs);
+    	final Set<String> onlyAct2 = Utils.setMinus(act2, mutualActs);
+    	
+    	/*
+    	System.out.println("Actions of " + tla1 + ":");
+    	for (final String a : act1) {
+    		System.out.println(a);
+    	}
+    	System.out.println();
+    	System.out.println("Actions of " + tla2 + ":");
+    	for (final String a : act2) {
+    		System.out.println(a);
+    	}
+    	*/
+    	
+    	System.out.println(tla1 + " actions only:");
+    	for (final String a : onlyAct1) {
+    		System.out.println(a);
+    	}
+    	System.out.println();
+    	System.out.println(tla2 + " actions only:");
+    	for (final String a : onlyAct2) {
+    		System.out.println(a);
+    	}
+    	System.out.println();
+    	System.out.println("mutual actions of " + tla1 + " and " + tla2 + ":");
+    	for (final String a : mutualActs) {
+    		System.out.println(a);
+    	}
+    }
+    
+    private static Set<String> getSpecActions(final String tla, final String cfg, final String tag) {
+    	TLC tlc = new TLC(tag);
+    	TLC.runTLC(tla, cfg, tlc);
+    	FastTool ft = (FastTool) tlc.tool;
+    	return Utils.toArrayList(ft.getActions())
+    		.stream()
+			.map(a -> a.getName().toString())
+			.collect(Collectors.toSet());
     }
     
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
