@@ -77,23 +77,12 @@ public class Robustness {
     }
     
     public static void aprilsMethod(String[] args) {
-    	final String spec = args[1];
-    	final String config = args[2];
+    	final String tla1 = args[1];
+    	final String cfg1 = args[2];
+    	final String tla2 = args[3];
+    	final String cfg2 = args[4];
     	
-    	TLC tlc1 = new TLC("spec");
-    	TLC.runTLC(spec, config, tlc1);
-//    	Set<EKState> init = tlc1.getKripke().getInitStates();
-//    	Set<Pair<EKState,EKState>> next = tlc1.getKripke().getNextStates();
-//    	
-//    	System.out.println("Initial States: ");
-//    	for (EKState currInit : init) {
-//    		System.out.println(currInit.toString());
-//    		System.out.println();
-//    	}
-//    	System.out.println("Next States: ");
-//    	for (Pair<EKState,EKState> currPair : next) {
-//    		System.out.println(currPair);
-//    	}
+    	ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2);
     }
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
     private static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
