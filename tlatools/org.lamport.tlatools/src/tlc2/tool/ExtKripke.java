@@ -32,7 +32,13 @@ public class ExtKripke {
 	private Set<EKState> envStates;
 	private static final String UNCHANGED = "UNCHANGED";
 	private static final String INSTANCE = "INSTANCE";
-
+	private static final String VARIABLES = "VARIABLES";
+	private static final String WITH = "WITH";
+	private static final String VARS = "Vars";
+	private static final String NEXT = "Next";
+	private static final String INIT = "Init";
+	private static final String TYPE_OK = "TypeOK";
+	
 	private static Set<String> getSpecActions(TLC tlc) {
 		FastTool ft = (FastTool) tlc.tool;
 		return Utils.toArrayList(ft.getActions())
@@ -41,7 +47,12 @@ public class ExtKripke {
 				.collect(Collectors.toSet());
 	}
 
-	public static String composeSpecs(String tla1, String cfg1, String tla2, String cfg2) {
+	public static String composeSpecs(String[] args) {
+		final String tla1 = args[1];
+    	final String cfg1 = args[2];
+    	final String tla2 = args[3];
+    	final String cfg2 = args[4];
+    	
 		TLC tlc1 = new TLC("spec1");
 		TLC.runTLC(tla1, cfg1, tlc1);
 		TLC tlc2 = new TLC("spec2");
@@ -53,9 +64,6 @@ public class ExtKripke {
 		final Set<String> onlyAct1 = Utils.setMinus(act1, mutualActs);
 		final Set<String> onlyAct2 = Utils.setMinus(act2, mutualActs);
 
-		String full = "";
-		String saveVars = "";
-
 		FastTool ft1 = (FastTool) tlc1.tool;
 		FastTool ft2 = (FastTool) tlc2.tool;
 
@@ -65,25 +73,16 @@ public class ExtKripke {
 		ArrayList<String> vars1 = Utils.toArrayList(ft1.getVarNames());
 		ArrayList<String> vars2 = Utils.toArrayList(ft2.getVarNames());
 
-		for (int i = 0; i < vars1.size(); i++) {
-			saveVars += vars1.get(i) + ", ";
-		}
-
-		for (int i = 0; i < vars2.size(); i++) {
-			if (i == vars2.size() - 1) {
-				saveVars += vars2.get(i);
-			} else {
-				saveVars += vars2.get(i) + ", ";
-			}
-		}
-
-		full += "\nVARIABLES " + saveVars + "\n\nvars == <<"  + saveVars + ">> \n\n" + fileName1 
-				+ "Vars == <<" + formatVariables(vars1) + ">> \n" + fileName2 + "Vars == <<" 
-				+ formatVariables(vars2) + ">> \n\n" + formatInstance(fileName1, vars1) 
-				+ formatInstance(fileName2, vars2) + "\nInit == " + fileName1 + "!Init /\\ " 
-				+ fileName2 +  "!Init \n\n";
-
 		ArrayList<String> nextNames = new ArrayList<String>();
+		
+		String saveVars = String.join(", " , vars1) + ", " + String.join(", " , vars2);
+
+		String full = "\n" + VARIABLES + " " + saveVars + "\n\nvars == <<"  + saveVars + ">> \n\n" 
+				+ fileName1 + VARS + " == <<" + String.join(", ", vars1) + ">> \n" + fileName2 
+				+ VARS + " == <<" + String.join(", ", vars2) + ">> \n\n" 
+				+ formatInstance(fileName1, vars1) + formatInstance(fileName2, vars2) 
+				+ "\n" + INIT + " == " + fileName1 + "!" + INIT + " /\\ " + fileName2 
+				+  "!" + INIT + " \n\n";
 
 		for (String val : mutualActs) {
 			full += val + " == " + fileName1 + "!" + val + " /\\ "
@@ -92,41 +91,21 @@ public class ExtKripke {
 		}
 
 		full += formatNonSharedActions(onlyAct1, fileName1, fileName2, nextNames)
-				+ formatNonSharedActions(onlyAct2, fileName2, fileName1, nextNames) + "Next == ";
-		
-		for (String val: nextNames) {
-			full += "\n    \\/ " + val;
-		}
-
-		full += "\n\nSpec == Init /\\ [][Next]_vars\n\nTypeOK == " + 
-				fileName1 + "!TypeOK /\\ " + fileName2 + "!TypeOK\n";
+				+ formatNonSharedActions(onlyAct2, fileName2, fileName1, nextNames) 
+				+ NEXT + " == \n    \\/" + String.join("\n    \\/ ", nextNames) 
+				+ "\n\nSpec == " + INIT + " /\\ " + "[]["+ NEXT + "]_vars\n\n" 
+				+ TYPE_OK + " == " + fileName1 + "!" + TYPE_OK 
+				+ " /\\ " + fileName2 + "!" + TYPE_OK + "\n";
 
 		return full; 
 
 	}
 
-	private static String formatVariables(ArrayList<String> vars) {
-		String save = "";
-		for (int i = 0; i < vars.size(); i++) {
-			if (i == vars.size() - 1) {
-				save += vars.get(i);
-			} else {
-				save += vars.get(i) + ", ";
-			}
-		}
-		
-		return save;
-	}
 	private static String formatInstance(String fileName, ArrayList<String> vars) {
 		String save = "";
 		save += fileName + 
-				" == " + INSTANCE + " " + fileName + "\n\t\tWITH " + vars.get(0) 
-				+ " <- " + vars.get(0);
-		if (vars.size() != 1) {
-			save += ",\n";
-		} else {
-			save += "\n";
-		}
+				" == " + INSTANCE + " " + fileName + "\n\t\t" + WITH + " " + vars.get(0) 
+				+ " <- " + vars.get(0) + (vars.size() != 1? ",\n" : "\n");
 
 		for (int i = 1; i < vars.size(); i++) {
 			if (i == vars.size() - 1) {
@@ -142,7 +121,7 @@ public class ExtKripke {
 			String fileName1, String fileName2, ArrayList<String> nextNames) {
 		String save = "";
 		for (String val : actions) {
-			save += val + " == " + UNCHANGED + " " + fileName2 + "Vars /\\ " 
+			save += val + " == " + UNCHANGED + " " + fileName2 + VARS + " /\\ " 
 					+ fileName1 + "!" + val + "\n\n";
 			nextNames.add(val);
 		}

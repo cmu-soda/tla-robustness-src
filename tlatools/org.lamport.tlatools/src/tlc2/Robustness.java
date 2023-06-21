@@ -56,7 +56,7 @@ public class Robustness {
     	Map<String,List<String>> jsonLists = new HashMap<>();
     	
     	if (args.length > 0 && args[0].equals("--april")) {
-    		aprilsMethod(args);
+    		System.out.println(ExtKripke.composeSpecs(args));
     	} else {
     	  	
         	if (args.length == 4 && args[0].equals("--prop")) {
@@ -75,15 +75,7 @@ public class Robustness {
     	}
   
     }
-    
-    public static void aprilsMethod(String[] args) {
-    	final String tla1 = args[1];
-    	final String cfg1 = args[2];
-    	final String tla2 = args[3];
-    	final String cfg2 = args[4];
-    	
-    	System.out.println(ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2));
-    }
+   
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
     private static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
     	final String outputLoc = args[1] + "/";
