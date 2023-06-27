@@ -9,12 +9,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import tla2sany.semantic.OpDefNode;
 import tlc2.RobustDiffRep.SpecScope;
 import tlc2.tool.Action;
+import tlc2.tool.Defns;
 import tlc2.tool.EKState;
 import tlc2.tool.ExtKripke;
 import tlc2.Utils.Pair;
 import tlc2.tool.impl.FastTool;
+import util.UniqueString;
 
 public class Robustness {
 
@@ -79,8 +82,33 @@ public class Robustness {
     	final String tla2 = args[2];
     	final String cfg2 = args[3];
     	
-    	final Set<String> act1 = getSpecActions(tla1, cfg1, "tlc1");
-    	final Set<String> act2 = getSpecActions(tla2, cfg2, "tlc2");
+    	final TLC tlc1 = new TLC("tlc1");
+    	TLC.runTLC(tla1, cfg1, tlc1);
+    	final TLC tlc2 = new TLC("tlc2");
+    	TLC.runTLC(tla2, cfg2, tlc2);
+    	
+    	FastTool ft1 = (FastTool) tlc1.tool;
+    	System.out.println("ft1 next name: " + ft1.getSpecProcessor().getNextPred());
+    	final Defns defns = ft1.defns;
+    	
+    	final Action nextPred = ft1.getNextStateSpec();
+    	final UniqueString actionDefnKey = nextPred.actionName;
+    	
+    	TLC.currentInstance = tlc1;
+    	final Object nextDefn = defns.get("Next");
+    	//final String isNull = nextDefn == null ? "IAN TRUE" : "IAN FALSE";
+    	//System.out.println(isNull);
+    	//System.out.println(nextDefn.getClass().toString());
+    	
+    	final OpDefNode odn = (OpDefNode) nextDefn;
+    	Utils.assertNotNull(odn, "Next node is null!");
+    	System.out.println("node ref: " + odn.getNodeRef());
+    	System.out.println(odn);
+    	
+    	
+    	/*
+    	final Set<String> act1 = getSpecActions(tla1, cfg1, tlc1);
+    	final Set<String> act2 = getSpecActions(tla2, cfg2, tlc2);
     	final Set<String> mutualActs = Utils.intersection(act1, act2);
     	final Set<String> onlyAct1 = Utils.setMinus(act1, mutualActs);
     	final Set<String> onlyAct2 = Utils.setMinus(act2, mutualActs);
@@ -95,7 +123,7 @@ public class Robustness {
     	for (final String a : act2) {
     		System.out.println(a);
     	}
-    	*/
+    	* /
     	
     	System.out.println(tla1 + " actions only:");
     	for (final String a : onlyAct1) {
@@ -110,12 +138,10 @@ public class Robustness {
     	System.out.println("mutual actions of " + tla1 + " and " + tla2 + ":");
     	for (final String a : mutualActs) {
     		System.out.println(a);
-    	}
+    	}*/
     }
     
-    private static Set<String> getSpecActions(final String tla, final String cfg, final String tag) {
-    	TLC tlc = new TLC(tag);
-    	TLC.runTLC(tla, cfg, tlc);
+    private static Set<String> getSpecActions(final String tla, final String cfg, final TLC tlc) {
     	FastTool ft = (FastTool) tlc.tool;
     	return Utils.toArrayList(ft.getActions())
     		.stream()

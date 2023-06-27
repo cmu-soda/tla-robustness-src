@@ -81,7 +81,7 @@ import util.UsageGenerator;
  */
 public class TLC {
 
-	private static TLC currentInstance = null;
+	public static TLC currentInstance = null;
 	
 	public static String getTlcKey() {
 		if (currentInstance == null) {
@@ -386,7 +386,7 @@ public class TLC {
     }
     
     public static void runTLC(final String tla, final String cfg, TLC tlc) {
-    	runTLC(tla, cfg, tlc, true);
+    	runTLC(tla, cfg, tlc, false);
     }
     
     public static void runTLC(final String tla, final String cfg, TLC tlc, boolean supressTLCOutput) {

@@ -1426,7 +1426,7 @@ public class OpDefNode extends OpDefOrDeclNode
 		return buf.toString().trim();
 	}
   
-  protected String getNodeRef() {
+  public String getNodeRef() {
     switch (getKind()) {
       case UserDefinedOpKind:
         return "UserDefinedOpKindRef";

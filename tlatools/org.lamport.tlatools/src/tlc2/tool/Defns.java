@@ -84,6 +84,7 @@ public class Defns implements ToolGlobals, Serializable
      */
     public void put(UniqueString key, Object val)
     {
+    	System.out.println("IAN!!! Adding defn key: " + key.toString());
         int loc = key.getDefnLoc();
         if (loc == -1)
         {

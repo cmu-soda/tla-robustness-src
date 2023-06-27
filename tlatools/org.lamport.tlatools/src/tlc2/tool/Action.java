@@ -24,7 +24,7 @@ public final class Action implements ToolGlobals, Serializable {
   /* Fields  */
   public final SemanticNode pred;     // Expression of the action
   public final Context con;           // Context of the action
-  private final UniqueString actionName;
+  public final UniqueString actionName;
   private OpDefNode opDef = null;
   private int id;
   private final boolean isInitPred;

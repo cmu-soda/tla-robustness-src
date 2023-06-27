@@ -74,7 +74,7 @@ abstract class Spec
       // Added by LL & YY on 25 June 2014 to eliminate infinite
       // loop when a recursively defined operator is used as an
       // operator argument in its own definition.
-    protected final Defns defns; // Global definitions reachable from root
+    public final Defns defns; // Global definitions reachable from root
 	protected final Defns unprocessedDefns;
     protected final TLAClass tlaClass; // TLA built-in classes.
     private final FilenameToStream resolver; // takes care of path to stream resolution
