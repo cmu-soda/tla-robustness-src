@@ -14,7 +14,7 @@ Protocol == INSTANCE TwoPhaseComp
                      tmPrepared <- tmPrepared,
                      rmState <- rmState
 
-RMs == Protocol!RMs
+RMs == Channel!RMs \cup Protocol!RMs
 
 Init == Channel!Init /\ Protocol!Init
 
@@ -23,9 +23,9 @@ SndCommit(rm) == Channel!SndCommit(rm) /\ Protocol!SndCommit(rm)
 SndAbort(rm) == Channel!SndAbort(rm) /\ Protocol!SndAbort(rm)
 
 SndPrepare(rm) ==  Channel!SndPrepare(rm) /\ Protocol!SndPrepare(rm)
-SilentAbort(rm) == UNCHANGED chanVars /\ Protocol!SilentAbort(rm)
 RcvCommit(rm) == Channel!RcvCommit(rm) /\ Protocol!RcvCommit(rm)
 RcvAbort(rm) == Channel!RcvAbort(rm) /\ Protocol!RcvAbort(rm)
+SilentAbort(rm) == UNCHANGED chanVars /\ Protocol!SilentAbort(rm)
 
 Next ==
     \E rm \in RMs :
@@ -33,9 +33,9 @@ Next ==
         \/ SndCommit(rm)
         \/ SndAbort(rm)
         \/ SndPrepare(rm)
-        \/ SilentAbort(rm)
         \/ RcvCommit(rm)
         \/ RcvAbort(rm)
+        \/ SilentAbort(rm)
 
 Spec == Init /\ [][Next]_vars
 

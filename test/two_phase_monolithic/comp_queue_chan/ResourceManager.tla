@@ -10,7 +10,6 @@ RMs == {"rm1", "rm2"}
 Init ==   
   /\ rmState = [rm \in RMs |-> "working"]
 
-
 SndPrepare(rm) == 
   /\ rmState[rm] = "working"
   /\ rmState' = [rmState EXCEPT![rm] = "prepared"]
