@@ -1,14 +1,13 @@
 ------------------------------- MODULE ClosedTwoPhaseQueue ----------------------------- 
 
-VARIABLES queue, chanState, tmState, tmPrepared, rmState
+VARIABLES queue, tmState, tmPrepared, rmState
 
-vars == <<queue, chanState, rmState, tmState, tmPrepared>>
-chanVars == <<queue, chanState>>
+vars == <<queue, rmState, tmState, tmPrepared>>
+chanVars == <<queue>>
 twoPhaseVars == <<rmState, tmState, tmPrepared>>
 
 Channel == INSTANCE QueueChannel
-               WITH queue <- queue,
-                    chanState <- chanState
+               WITH queue <- queue
 
 Protocol == INSTANCE TwoPhase
                 WITH tmState <- tmState,

@@ -2,59 +2,61 @@
 
 EXTENDS Sequences, Naturals, Integers
 
-VARIABLES queue, chanState
+VARIABLES queue
 
-vars == <<queue, chanState>>
+vars == <<queue>>
 
 RMs == {"rm1", "rm2"}
 msg == "msg"
-from == "from"
+theRM == "theRM"
+maxLen == 5
 
 
-Init ==
-    /\ queue = <<>>
-    /\ chanState = "snd"
+Init == queue = <<>>
 
 \* sending adds a message to the queue
 \* receiving removes a message from the queue
 
 SndPrepare(rm) == 
-    LET data == [msg |-> "prepare", from |-> rm] IN
+    LET data == [msg |-> "prepare", theRM |-> rm] IN
     /\ queue' = Append(queue, data)
-    /\ UNCHANGED chanState
 
 RcvPrepare(rm) ==
     LET hd == Head(queue)
         tl == Tail(queue) IN
     /\ Len(queue) > 0
     /\ "prepare" = hd[msg]
-    /\ rm = hd[from]
+    /\ rm = hd[theRM]
     /\ queue' = tl
-    /\ UNCHANGED chanState
 
 SndCommit(rm) ==
-    /\ chanState = "snd"
-    /\ chanState' = "rcvCommit"
-    /\ UNCHANGED queue
+    LET data == [msg |-> "commit", theRM |-> rm] IN
+    /\ queue' = Append(queue, data)
 
 RcvCommit(rm) ==
-    /\ chanState = "rcvCommit"
-    /\ chanState' = "snd"
-    /\ UNCHANGED queue
+    LET hd == Head(queue)
+        tl == Tail(queue) IN
+    /\ Len(queue) > 0
+    /\ "commit" = hd[msg]
+    /\ rm = hd[theRM]
+    /\ queue' = tl
 
 SndAbort(rm) ==
-    /\ chanState = "snd"
-    /\ chanState' = "rcvAbort"
-    /\ UNCHANGED queue
+    LET data == [msg |-> "abort", theRM |-> rm] IN
+    \* must restrict the length here since TM can abort endlessly
+    /\ Len(queue) < maxLen
+    /\ queue' = Append(queue, data)
 
 RcvAbort(rm) ==
-    /\ chanState = "rcvAbort"
-    /\ chanState' = "snd"
-    /\ UNCHANGED queue
+    LET hd == Head(queue)
+        tl == Tail(queue) IN
+    /\ Len(queue) > 0
+    /\ "abort" = hd[msg]
+    /\ rm = hd[theRM]
+    /\ queue' = tl
 
 
 TypeOK ==
-    /\ queue \in Seq([msg : {"prepare"}, from : RMs])
-    /\ chanState \in {"snd","rcvPrepare","rcvCommit","rcvAbort","rcvPrepare"}
+    /\ queue \in Seq([msg : {"prepare","commit","abort"}, theRM : RMs])
 
 =============================================================================
