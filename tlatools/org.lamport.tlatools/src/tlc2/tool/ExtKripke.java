@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import tlc2.Utils;
 import tlc2.Utils.Pair;
@@ -298,6 +299,29 @@ public class ExtKripke {
     	return succStates;
     }
     
+    private Set<String> enabledActions(EKState s) {
+    	Set<String> enabled = new HashSet<>();
+    	for (Pair<EKState,EKState> t : this.delta) {
+    		if (s.equals(t.first)) {
+    			final String a = this.deltaActions.get(t);
+    			enabled.add(a);
+    		}
+    	}
+    	return enabled;
+    }
+    
+    private Set<Pair<String, EKState>> outgoingTransitions(EKState s) {
+    	Set<Pair<String, EKState>> outgoing = new HashSet<>();
+    	for (Pair<EKState,EKState> t : this.delta) {
+    		if (s.equals(t.first)) {
+    			final String a = this.deltaActions.get(t);
+    			final Pair<String, EKState> p = new Pair(a, t.second);
+    			outgoing.add(p);
+    		}
+    	}
+    	return outgoing;
+    }
+    
     private Set<EKState> notAlwaysNotPhiStates() {
     	Set<EKState> states = new HashSet<>();
     	Set<Pair<EKState,EKState>> inverseDelta = invertTransitionRelation(delta);
@@ -394,6 +418,47 @@ public class ExtKripke {
     
     
     // print a TLA+ spec
+    
+    private String toFSPAction(final String s) {
+    	return s.toLowerCase();
+    }
+    
+    public String toFSP() {
+    	Utils.assertTrue(this.initStates.size() == 1, "We only support 1 init state for right now");
+    	
+    	StringBuilder builder = new StringBuilder();
+
+    	// assign a name to each state
+    	int stateNum = 0;
+    	Map<EKState, String> stateNames = new HashMap<>();
+    	for (final EKState s : this.allStates) {
+    		final int num = stateNum++;
+    		final String name = "S" + num;
+    		stateNames.put(s, name);
+    	}
+    	
+    	// generate FSP
+    	String initStateDef = "";
+    	ArrayList<String> nonInitStateDefs = new ArrayList<>();
+    	for (final EKState s : this.allStates) {
+    		final String name = stateNames.get(s);
+    		final Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
+    		// unfortunately each action is missing its params
+    		final String actions = outgoing
+    			.stream()
+    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
+    			.collect(Collectors.joining(" | "));
+    		final String stateDef = name + " = (" + actions + ")";
+    		if (this.initStates.contains(s)) {
+    			System.out.println("init state: " + name);
+    			initStateDef = stateDef;
+    		} else {
+        		nonInitStateDefs.add(stateDef);
+    		}
+    	}
+    	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
+    	return fsp;
+    }
     
     public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {
     	StringBuilder builder = new StringBuilder();
