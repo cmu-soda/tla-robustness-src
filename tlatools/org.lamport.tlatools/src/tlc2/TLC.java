@@ -97,24 +97,15 @@ public class TLC {
 	 * Whether the TLA+ spec is encoded in a .jar file, not a TLA+ text file.
 	 */
     private static boolean MODEL_PART_OF_JAR = false;
-    
-	public static String getParameterFormula(FastTool ft, TLC tlc) {
-		//was made public
-		TLC.currentInstance = tlc;
-		OpDefNode myNode = (OpDefNode)ft.getSpecProcessor().getDefns().get("Next");
-		OpApplNode body = (OpApplNode)myNode.getBody();
-		TLC.currentInstance = null;
-		return ((SyntaxTreeNode)body.getBdedQuantBounds()[0].stn).heirs()[1].getImage().toString();
-	}
 	
-	public static String getParameter(FastTool ft, TLC tlc) {
-		//use String.join in case there are multiple parameters
-		//was made public
-		TLC.currentInstance = tlc;
-		OpDefNode myNode = (OpDefNode)ft.getSpecProcessor().getDefns().get("Next");
-		OpApplNode body = (OpApplNode)myNode.getBody();
-		TLC.currentInstance = null;
-		return body.getBdedQuantSymbolLists()[0][0].getName().toString();
+	public static OpApplNode getTransitionRelationNode(FastTool ft, TLC tlc, String name) {
+		try {
+			TLC.currentInstance = tlc;
+			OpDefNode myNode = (OpDefNode)ft.getSpecProcessor().getDefns().get(name);
+			return (OpApplNode)myNode.getBody(); 
+		} finally {
+			TLC.currentInstance = null;
+		}
 	}
 	
     // thank you https://stackoverflow.com/questions/9882487/how-can-i-disable-system-out-for-speed-in-java

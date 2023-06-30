@@ -52,7 +52,7 @@ public class ExtKripke {
 	private static final String NEXT = "Next";
 	private static final String INIT = "Init";
 	private static final String TYPE_OK = "TypeOK";
-	
+
 	private static Set<String> getSpecActions(TLC tlc) {
 		FastTool ft = (FastTool) tlc.tool;
 		return Utils.toArrayList(ft.getActions())
@@ -63,17 +63,16 @@ public class ExtKripke {
 
 	public static String composeSpecs(String[] args) {
 		final String tla1 = args[1];
-    	final String cfg1 = args[2];
-    	final String tla2 = args[3];
-    	final String cfg2 = args[4];
-    	final String parameters = args[5];
-    	
+		final String cfg1 = args[2];
+		final String tla2 = args[3];
+		final String cfg2 = args[4];
+		
 		TLC tlc1 = new TLC("spec1");
 		TLC.runTLC(tla1, cfg1, tlc1);
-		
+
 		TLC tlc2 = new TLC("spec2");
 		TLC.runTLC(tla2, cfg2, tlc2);
-		
+
 		final Set<String> act1 = getSpecActions(tlc1);
 		final Set<String> act2 = getSpecActions(tlc2);
 		final Set<String> mutualActs = Utils.intersection(act1, act2);
@@ -86,40 +85,69 @@ public class ExtKripke {
 		String fileName1 = tlc1.getMainFile();
 		String fileName2 = tlc2.getMainFile();
 
+		final String parameters = 
+				(TLC.getTransitionRelationNode(ft1, tlc1, "Next").getBdedQuantSymbolLists() == null? 
+						"false" : "true");
+
 		ArrayList<String> vars1 = Utils.toArrayList(ft1.getVarNames());
 		ArrayList<String> vars2 = Utils.toArrayList(ft2.getVarNames());
 
-		ArrayList<String> nextNames = new ArrayList<String>();
+		String[] saveParams = null;
+		String parameterNoParen = "";
+		String parameterFormula = "";
 		
+		if (parameters.equals("true")) {
+			saveParams = new String[TLC.getTransitionRelationNode(ft1, tlc1, "Next").getBdedQuantSymbolLists().length];
+			for (int i = 0; i < TLC.getTransitionRelationNode(ft1, tlc1, "Next").getBdedQuantSymbolLists().length; i++) {
+				for (int j = 0; j < TLC.getTransitionRelationNode(ft1, tlc1, "Next").
+						getBdedQuantSymbolLists()[i].length; j++) {
+					saveParams[i] = TLC.getTransitionRelationNode(ft1, tlc1, "Next").
+							getBdedQuantSymbolLists()[i][j].getName().toString();
+				}
+			}
+		} 
+		
+		String parameter = (!(parameters.equals("true"))? "" : "(" + String.join(",", saveParams) + ")");
+
+		if (parameters.equals("true")) {
+			parameterNoParen = TLC.getTransitionRelationNode(ft1, tlc1, "Next").
+					getBdedQuantSymbolLists()[0][0].getName().toString();
+			parameterFormula = ((SyntaxTreeNode)TLC.getTransitionRelationNode(ft1, tlc1, "Next").
+					getBdedQuantBounds()[0].stn).heirs()[1].getImage().toString();
+		}
+
+		ArrayList<String> nextNames = new ArrayList<String>();
+
 		String saveVars = String.join(", " , vars1) + ", " + String.join(", " , vars2);
 
 		String full = "\n" + VARIABLES + " " + saveVars + "\n\nvars == <<"  + saveVars + ">> \n\n" 
 				+ fileName1 + VARS + " == <<" + String.join(", ", vars1) + ">> \n" + fileName2 
 				+ VARS + " == <<" + String.join(", ", vars2) + ">> \n\n" 
 				+ formatInstance(fileName1, vars1) + formatInstance(fileName2, vars2) 
-				+ "\n" + TLC.getParameterFormula(ft1, tlc1) + " == " + fileName1 + "!" + TLC.getParameterFormula(ft1, tlc1)
+				+ (!(parameters.equals("true"))? "" : 
+					"\n" + parameterFormula + " == " + fileName1 + "!" + parameterFormula)
 				+ "\n\n" + INIT + " == " + fileName1 + "!" + INIT + " /\\ " + fileName2 
 				+  "!" + INIT + " \n\n";
 
 		for (String val : mutualActs) {
-			full += val + "(" + TLC.getParameter(ft1, tlc1) + ") == " + fileName1 + "!" + val + "(" + TLC.getParameter(ft1, tlc1) + ") /\\ "
-					+ fileName2 + "!" + val + "(" + TLC.getParameter(ft1, tlc1) + ")\n\n";
+			full += val + parameter + " == " + fileName1 + "!" + val + parameter + " /\\ "
+					+ fileName2 + "!" + val + parameter + "\n\n";
 			nextNames.add(val);
 		}
 
-		full += formatNonSharedActions(onlyAct1, fileName1, fileName2, nextNames, TLC.getParameter(ft1, tlc1))
-				+ formatNonSharedActions(onlyAct2, fileName2, fileName1, nextNames, TLC.getParameter(ft1, tlc1)) 
-				+ NEXT + (!(parameters.equals("true"))? " == \n    \\/" : " == \n \\E " + TLC.getParameter(ft1, tlc1) 
-				+ " \\in " + TLC.getParameterFormula(ft1, tlc1) + ":\n    \\/") + String.join("(" + TLC.getParameter(ft1, tlc1) + ") \n    \\/ ", nextNames) 
-				+ "(" + TLC.getParameter(ft1, tlc1) + ")\n\nSpec == " + INIT + " /\\ " + "[]["+ NEXT + "]_vars\n\n" 
-				+ TYPE_OK + " == " + fileName1 + "!" + TYPE_OK 
-				+ " /\\ " + fileName2 + "!" + TYPE_OK + "\n";
+		full += formatNonSharedActions(onlyAct1, fileName1, fileName2, nextNames, parameter)
+				+ formatNonSharedActions(onlyAct2, fileName2, fileName1, nextNames, parameter) 
+				+ NEXT + (!(parameters.equals("true"))? " == \n    \\/" : " == \n \\E " + parameterNoParen 
+						+ " \\in " + parameterFormula + ":\n    \\/") + String.join(parameter + " \n    \\/ ", nextNames) 
+						+ parameter + "\n\nSpec == " + INIT + " /\\ " + "[]["+ NEXT + "]_vars\n\n" 
+						+ TYPE_OK + " == " + fileName1 + "!" + TYPE_OK 
+						+ " /\\ " + fileName2 + "!" + TYPE_OK + "\n";
 
 		return full;
 	}
 
 
-	
+
 	private static String formatInstance(String fileName, ArrayList<String> vars) {
 		String save = "";
 		save += fileName + 
@@ -133,18 +161,18 @@ public class ExtKripke {
 				save += "\t\t     " + vars.get(i) + " <- " + vars.get(i) + ",\n";
 			}
 		}
-		
+
 		return save;
 	}
-	
-	
-	
+
+
+
 	private static String formatNonSharedActions(Set<String> actions, 
 			String fileName1, String fileName2, ArrayList<String> nextNames, String parameters) {
 		String save = "";
 		for (String val : actions) {
-			save += val + "(" + parameters + ") == " + UNCHANGED + " " + fileName2 + VARS + " /\\ " 
-					+ fileName1 + "!" + val + "(" + parameters + ")\n\n";
+			save += val + parameters + " == " + UNCHANGED + " " + fileName2 + VARS + " /\\ " 
+					+ fileName1 + "!" + val + parameters + "\n\n";
 			nextNames.add(val);
 		}
 		return save;
