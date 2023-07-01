@@ -11,11 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import tla2sany.semantic.ExprOrOpArgNode;
-import tla2sany.semantic.FormalParamNode;
-import tla2sany.semantic.OpApplNode;
-import tla2sany.semantic.OpDefNode;
-import tla2sany.semantic.SymbolNode;
 import tlc2.Utils;
 import tlc2.Utils.Pair;
 import tlc2.value.impl.Value;
@@ -34,7 +29,7 @@ public class ExtKripke {
     private Set<EKState> badStates;
     private Set<Pair<EKState,EKState>> delta;
     private Map<Pair<EKState,EKState>, String> deltaActions;
-    private Map<Pair<EKState,EKState>, String> deltaActionsWithParams;
+    private Map<Pair<EKState,EKState>, Set<String>> deltaActionsWithParams;
     private Set<EKState> envStates;
 
     public ExtKripke() {
@@ -138,7 +133,10 @@ public class ExtKripke {
     		params.add(sk);
     	}
     	final String actNameWParams = actName + "_" + String.join("_", params);
-    	deltaActionsWithParams.put(transition, actNameWParams);
+    	if (!deltaActionsWithParams.containsKey(transition)) {
+        	deltaActionsWithParams.put(transition, new HashSet<>());
+    	}
+    	deltaActionsWithParams.get(transition).add(actNameWParams);
     }
     
     
@@ -341,9 +339,10 @@ public class ExtKripke {
     	Set<Pair<String, EKState>> outgoing = new HashSet<>();
     	for (Pair<EKState,EKState> t : this.delta) {
     		if (s.equals(t.first)) {
-    			final String a = this.deltaActionsWithParams.get(t);
-    			final Pair<String, EKState> p = new Pair(a, t.second);
-    			outgoing.add(p);
+    			for (final String a : this.deltaActionsWithParams.get(t)) {
+        			final Pair<String, EKState> p = new Pair<String, EKState>(a, t.second);
+        			outgoing.add(p);
+    			}
     		}
     	}
     	return outgoing;
@@ -474,9 +473,10 @@ public class ExtKripke {
     			.stream()
     			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
     			.collect(Collectors.joining(" | "));
-    		final String stateDef = name + " = (" + actions + ")";
+    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
+    		final String stateDef = name + actionBody;
     		if (this.initStates.contains(s)) {
-    			System.out.println("init state: " + name);
+    			//System.out.println("init state: " + name);
     			initStateDef = stateDef;
     		} else {
         		nonInitStateDefs.add(stateDef);
