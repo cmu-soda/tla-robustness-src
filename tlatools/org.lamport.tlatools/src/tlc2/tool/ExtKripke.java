@@ -6,12 +6,19 @@ package tlc2.tool;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import tla2sany.semantic.ExprOrOpArgNode;
+import tla2sany.semantic.FormalParamNode;
+import tla2sany.semantic.OpApplNode;
+import tla2sany.semantic.OpDefNode;
+import tla2sany.semantic.SymbolNode;
 import tlc2.Utils;
 import tlc2.Utils.Pair;
+import tlc2.value.impl.Value;
 
 import java.lang.StringBuilder;
 
@@ -27,6 +34,7 @@ public class ExtKripke {
     private Set<EKState> badStates;
     private Set<Pair<EKState,EKState>> delta;
     private Map<Pair<EKState,EKState>, String> deltaActions;
+    private Map<Pair<EKState,EKState>, String> deltaActionsWithParams;
     private Set<EKState> envStates;
 
     public ExtKripke() {
@@ -35,6 +43,7 @@ public class ExtKripke {
         this.badStates = new HashSet<>();
         this.delta = new HashSet<>();
         this.deltaActions = new HashMap<>();
+        this.deltaActionsWithParams = new HashMap<>();
     	this.envStates = new HashSet<>();
     }
 
@@ -44,6 +53,7 @@ public class ExtKripke {
     	this.badStates = new HashSet<>(src.badStates);
     	this.delta = new HashSet<>(src.delta);
     	this.deltaActions = new HashMap<>(src.deltaActions);
+    	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
     	this.envStates = new HashSet<>(src.envStates);
     }
 
@@ -117,6 +127,18 @@ public class ExtKripke {
     	Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
     	delta.add(transition);
     	deltaActions.put(transition, actName);
+
+    	// add param values to the action
+    	final List<String> paramKeys = Utils.actionParams(act);
+    	final Map<String, Value> mp = act.con.toStrMap();
+    	ArrayList<String> params = new ArrayList<>();
+    	for (final String k : paramKeys) {
+    		final Value val = mp.get(k);
+    		final String sk = val.toString().replace("\"", "");
+    		params.add(sk);
+    	}
+    	final String actNameWParams = actName + "_" + String.join("_", params);
+    	deltaActionsWithParams.put(transition, actNameWParams);
     }
     
     
@@ -310,11 +332,16 @@ public class ExtKripke {
     	return enabled;
     }
     
+    /**
+     * Includes the param names in the action
+     * @param s
+     * @return
+     */
     private Set<Pair<String, EKState>> outgoingTransitions(EKState s) {
     	Set<Pair<String, EKState>> outgoing = new HashSet<>();
     	for (Pair<EKState,EKState> t : this.delta) {
     		if (s.equals(t.first)) {
-    			final String a = this.deltaActions.get(t);
+    			final String a = this.deltaActionsWithParams.get(t);
     			final Pair<String, EKState> p = new Pair(a, t.second);
     			outgoing.add(p);
     		}
@@ -443,7 +470,6 @@ public class ExtKripke {
     	for (final EKState s : this.allStates) {
     		final String name = stateNames.get(s);
     		final Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
-    		// unfortunately each action is missing its params
     		final String actions = outgoing
     			.stream()
     			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
