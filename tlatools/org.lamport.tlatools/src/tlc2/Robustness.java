@@ -55,8 +55,11 @@ public class Robustness {
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
     	
-    	if (args.length > 0 && args[0].equals("--april")) {
+    	if (args.length == 5 && args[0].equals("--compose")) {
     		System.out.println(ExtKripke.composeSpecs(args));
+    	} else if (args[0].equals("--compose") && args.length != 5){
+    		System.out.println("usage: tlc-robustness <flag> <output_loc> "
+    				+ "<spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--compose");
     	} else {
     	  	
         	if (args.length == 4 && args[0].equals("--prop")) {
