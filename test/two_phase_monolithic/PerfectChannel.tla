@@ -3,6 +3,7 @@
 VARIABLES chanState
 
 vars == <<chanState>>
+RMs == {"rm1", "rm2"}
 
 Init == chanState = "snd"
 
@@ -30,6 +31,16 @@ RcvAbort(rm) ==
     /\ chanState = "rcvAbort"
     /\ chanState' = "snd"
 
+Next ==
+    \E rm \in RMs :
+        \/ RcvPrepare(rm)
+        \/ SndCommit(rm)
+        \/ SndAbort(rm)
+        \/ SndPrepare(rm)
+        \/ RcvCommit(rm)
+        \/ RcvAbort(rm)
+
+Spec == Init /\ [][Next]_vars
 
 TypeOK ==
     /\ chanState \in {"snd","rcvPrepare","rcvCommit","rcvAbort","rcvPrepare"}
