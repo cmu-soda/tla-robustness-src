@@ -45,8 +45,10 @@ public class Robustness {
 	private static final String MISSING_BOTH_TYPEOKS = "missing_both_typeoks";
 	private static final String TYPE_OK = "TypeOK";
 	private static final String ALL = "All";
-	private static final String USAGE = "usage: tlc-robustness <flag> <output_loc> <spec1> "
-			+ "<cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp";
+	private static final String USAGE = "usage:\n"
+			+ "tlc-robustness —compose <spec1> <cfg1> <spec2> <cfg2>\n"
+			+ "tlc-robustness <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\n"
+			+ "flag=--prop|--env|--cmp";
 	
 	
 	/*
@@ -71,7 +73,8 @@ public class Robustness {
         		compareSpecs(args, jsonStrs, jsonLists);
         	}
         	else {
-        		System.out.println(USAGE);
+        		System.out.println(USAGE); 
+        		return;
         	}
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
