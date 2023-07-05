@@ -45,6 +45,8 @@ public class Robustness {
 	private static final String MISSING_BOTH_TYPEOKS = "missing_both_typeoks";
 	private static final String TYPE_OK = "TypeOK";
 	private static final String ALL = "All";
+	private static final String USAGE = "usage: tlc-robustness <flag> <output_loc> <spec1> "
+			+ "<cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp";
 	
 	
 	/*
@@ -57,9 +59,6 @@ public class Robustness {
     	
     	if (args.length == 5 && args[0].equals("--compose")) {
     		System.out.println(ExtKripke.composeSpecs(args));
-    	} else if (args[0].equals("--compose") && args.length != 5){
-    		System.out.println("usage: tlc-robustness <flag> <output_loc> "
-    				+ "<spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--compose");
     	} else {
     	  	
         	if (args.length == 4 && args[0].equals("--prop")) {
@@ -72,7 +71,7 @@ public class Robustness {
         		compareSpecs(args, jsonStrs, jsonLists);
         	}
         	else {
-        		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
+        		System.out.println(USAGE);
         	}
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
