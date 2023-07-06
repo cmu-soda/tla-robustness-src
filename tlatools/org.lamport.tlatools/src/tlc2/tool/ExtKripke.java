@@ -167,6 +167,8 @@ public class ExtKripke {
 		return save;
 	}
 	
+	
+	
     public ExtKripke() {
     	this.initStates = new HashSet<>();
         this.allStates = new HashSet<>();
