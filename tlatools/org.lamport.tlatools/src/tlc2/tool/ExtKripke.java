@@ -4,7 +4,6 @@
 package tlc2.tool;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -19,20 +18,8 @@ import tlc2.value.impl.Value;
 
 import java.lang.StringBuilder;
 import tlc2.tool.impl.FastTool;
-import java.util.stream.Collectors;
 
 import tla2sany.parser.SyntaxTreeNode;
-import tla2sany.semantic.AnyDefNode;
-import tla2sany.semantic.ExprNode;
-import tla2sany.semantic.ExprOrOpArgNode;
-import tla2sany.semantic.FormalParamNode;
-import tla2sany.semantic.OpDefNode;
-import tla2sany.semantic.SemanticNode;
-import tla2sany.utilities.Strings;
-import tlc2.tool.impl.ModelConfig;
-import util.MonolithSpecExtractor;
-import util.UniqueString;
-import tla2sany.semantic.OpApplNode;
 
 
 public class ExtKripke {
@@ -84,41 +71,6 @@ public class ExtKripke {
 				.map(a -> a.getName().toString())
 				.collect(Collectors.toSet());
 	}
-
-    public void addTransition(Action act, TLCState src, TLCState dst) {
-    	final String srcName = Utils.normalizeStateString(src.toString());
-    	final String dstName = Utils.normalizeStateString(dst.toString());
-    	final EKState srcEks = new EKState(srcName);
-    	final EKState dstEks = new EKState(dstName);
-    	final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
-    	
-    	final String actName = act.getName().toString();
-    	Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
-    	delta.add(transition);
-    	deltaActions.put(transition, actName);
-
-    	// add param values to the action
-    	final List<String> paramKeys = Utils.actionParams(act);
-    	final Map<String, Value> mp = act.con.toStrMap();
-    	ArrayList<String> params = new ArrayList<>();
-    	for (final String k : paramKeys) {
-    		final Value val = mp.get(k);
-    		final String sk = val.toString().replace("\"", "");
-    		params.add(sk);
-    	}
-    	final String actNameWParams = actName + "_" + String.join("_", params);
-    	if (!deltaActionsWithParams.containsKey(transition)) {
-        	deltaActionsWithParams.put(transition, new HashSet<>());
-    	}
-    	deltaActionsWithParams.get(transition).add(actNameWParams);
-    }
-    
-    
-    // post-processing
-    
-    public boolean isEmpty() {
-    	return this.allStates.isEmpty() || this.initStates.isEmpty();
-    }
 
 	public static String composeSpecs(String[] args) {
 		final String tla1 = args[1];
@@ -236,24 +188,6 @@ public class ExtKripke {
 		return save;
 	}
 
-	public ExtKripke() {
-		this.initStates = new HashSet<>();
-		this.allStates = new HashSet<>();
-		this.badStates = new HashSet<>();
-		this.delta = new HashSet<>();
-		this.deltaActions = new HashMap<>();
-		this.envStates = new HashSet<>();
-	}
-
-	public ExtKripke(final ExtKripke src) {
-		this.initStates = new HashSet<>(src.initStates);
-		this.allStates = new HashSet<>(src.allStates);
-		this.badStates = new HashSet<>(src.badStates);
-		this.delta = new HashSet<>(src.delta);
-		this.deltaActions = new HashMap<>(src.deltaActions);
-		this.envStates = new HashSet<>(src.envStates);
-	}
-
 	// assumes that the state space of srcClosed is more refined than the state space of srcM.
 	// this assumption is generally valid because the closed system is composed of M, and hence
 	// contains all state vars that are in M.
@@ -313,18 +247,33 @@ public class ExtKripke {
 		badStates.add(eks);
 	}
 
-	public void addTransition(Action act, TLCState src, TLCState dst) {
-		final String srcName = Utils.normalizeStateString(src.toString());
-		final String dstName = Utils.normalizeStateString(dst.toString());
-		final EKState srcEks = new EKState(srcName);
-		final EKState dstEks = new EKState(dstName);
-		final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
+    public void addTransition(Action act, TLCState src, TLCState dst) {
+    	final String srcName = Utils.normalizeStateString(src.toString());
+    	final String dstName = Utils.normalizeStateString(dst.toString());
+    	final EKState srcEks = new EKState(srcName);
+    	final EKState dstEks = new EKState(dstName);
+    	final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
+    	
+    	final String actName = act.getName().toString();
+    	Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
+    	delta.add(transition);
+    	deltaActions.put(transition, actName);
 
-		final String actName = act.getName().toString();
-		Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
-		delta.add(transition);
-		deltaActions.put(transition, actName);
-	}
+    	// add param values to the action
+    	final List<String> paramKeys = Utils.actionParams(act);
+    	final Map<String, Value> mp = act.con.toStrMap();
+    	ArrayList<String> params = new ArrayList<>();
+    	for (final String k : paramKeys) {
+    		final Value val = mp.get(k);
+    		final String sk = val.toString().replace("\"", "");
+    		params.add(sk);
+    	}
+    	final String actNameWParams = actName + "_" + String.join("_", params);
+    	if (!deltaActionsWithParams.containsKey(transition)) {
+        	deltaActionsWithParams.put(transition, new HashSet<>());
+    	}
+    	deltaActionsWithParams.get(transition).add(actNameWParams);
+    }
 
 
 	// post-processing
@@ -534,17 +483,6 @@ public class ExtKripke {
     	}
     	return outgoing;
     }
-    
-    private Set<EKState> notAlwaysNotPhiStates() {
-    	Set<EKState> states = new HashSet<>();
-    	Set<Pair<EKState,EKState>> inverseDelta = invertTransitionRelation(delta);
-    	for (EKState errState : this.errorBoundary()) {
-    		// perform a DFS (on inverse delta) from errState. add every state we find to "states"
-    		// discoverDFS will mutate "states"
-    		discoverDFS(errState, inverseDelta, states);
-    	}
-    	return states;
-    }
 
 	private Set<EKState> notAlwaysNotPhiStates() {
 		Set<EKState> states = new HashSet<>();
@@ -715,70 +653,6 @@ public class ExtKripke {
     	
     	return builder.toString();
     }
-    
-    private String initExpr() {
-    	if (this.initStates.isEmpty()) {
-    		return "FALSE";
-    	}
-    	return "\\/ " + String.join("\n  \\/ ", statesToStringList(this.initStates));
-    }
-
-	private static Set<EKState> mutualReach(final ExtKripke m1, final ExtKripke m2) {
-		Set<EKState> reach = new HashSet<>();
-		Set<EKState> mutualInit = Utils.intersection(m1.initStates, m2.initStates);
-		Set<Pair<EKState,EKState>> mutualDelta = Utils.intersection(m1.delta, m2.delta);
-		for (EKState init : mutualInit) {
-			mutualReach(mutualDelta, init, reach);
-		}
-		return reach;
-	}
-
-	private static void mutualReach(final Set<Pair<EKState,EKState>> mutualDelta, final EKState init, Set<EKState> reach) {
-		reach.add(init);
-		for (Pair<EKState,EKState> t : mutualDelta) {
-			if (init.equals(t.first)) {
-				EKState succ = t.second;
-				if (!reach.contains(succ)) {
-					mutualReach(mutualDelta, succ, reach);
-				}
-			}
-		}
-	}
-
-
-	// print a TLA+ spec
-
-	public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {
-		StringBuilder builder = new StringBuilder();
-
-		//String initOp = "Init_" + tag;
-		//String nextOp = "Next_" + tag;
-		//String specOp = "Spec_" + tag;
-		final String initOp = "Init";
-		final String nextOp = "Next";
-		final String specOp = "Spec";
-
-		// Init operator
-		builder.append(initOp).append(" ==\n  ").append(initExpr());
-		builder.append("\n\n");
-
-		// Next operator
-		builder.append(nextOp).append(" ==\n  ").append(nextExpr());
-		builder.append("\n\n");
-
-		// Spec operator
-		builder.append(specOp).append(" == ")
-		.append(initOp).append(" /\\ [][")
-		.append(nextOp).append("]_").append(varsSeqName);
-		if (!specFairness.isEmpty() && !strongFairness) {
-			builder.append(" /\\ ").append(specFairness);
-		}
-		if (strongFairness) {
-			builder.append(" /\\ SF_").append(varsSeqName).append("(").append(nextOp).append(")");
-		}
-
-		return builder.toString();
-	}
 
 	private String initExpr() {
 		if (this.initStates.isEmpty()) {
