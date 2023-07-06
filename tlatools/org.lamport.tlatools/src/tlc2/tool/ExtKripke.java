@@ -44,6 +44,14 @@ public class ExtKripke {
 	private static final String INIT = "Init";
 	private static final String TYPE_OK = "TypeOK";
 
+	private static Set<String> getSpecActions(TLC tlc) {
+		FastTool ft = (FastTool) tlc.tool;
+		return Utils.toArrayList(ft.getActions())
+				.stream()
+				.map(a -> a.getName().toString())
+				.collect(Collectors.toSet());
+	}
+	
     public ExtKripke() {
     	this.initStates = new HashSet<>();
         this.allStates = new HashSet<>();
@@ -63,14 +71,6 @@ public class ExtKripke {
     	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
     	this.envStates = new HashSet<>(src.envStates);
     }
-
-	private static Set<String> getSpecActions(TLC tlc) {
-		FastTool ft = (FastTool) tlc.tool;
-		return Utils.toArrayList(ft.getActions())
-				.stream()
-				.map(a -> a.getName().toString())
-				.collect(Collectors.toSet());
-	}
 
 	public static String composeSpecs(String[] args) {
 		final String tla1 = args[1];
