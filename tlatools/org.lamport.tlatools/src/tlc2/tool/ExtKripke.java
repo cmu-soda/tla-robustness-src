@@ -51,26 +51,6 @@ public class ExtKripke {
 				.map(a -> a.getName().toString())
 				.collect(Collectors.toSet());
 	}
-	
-    public ExtKripke() {
-    	this.initStates = new HashSet<>();
-        this.allStates = new HashSet<>();
-        this.badStates = new HashSet<>();
-        this.delta = new HashSet<>();
-        this.deltaActions = new HashMap<>();
-        this.deltaActionsWithParams = new HashMap<>();
-    	this.envStates = new HashSet<>();
-    }
-
-    public ExtKripke(final ExtKripke src) {
-    	this.initStates = new HashSet<>(src.initStates);
-    	this.allStates = new HashSet<>(src.allStates);
-    	this.badStates = new HashSet<>(src.badStates);
-    	this.delta = new HashSet<>(src.delta);
-    	this.deltaActions = new HashMap<>(src.deltaActions);
-    	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
-    	this.envStates = new HashSet<>(src.envStates);
-    }
 
 	public static String composeSpecs(String[] args) {
 		final String tla1 = args[1];
@@ -156,9 +136,9 @@ public class ExtKripke {
 
 		return full;
 	}
-
-
-
+	
+	
+	
 	private static String formatInstance(String fileName, ArrayList<String> vars) {
 		String save = "";
 		save += fileName + 
@@ -176,8 +156,6 @@ public class ExtKripke {
 		return save;
 	}
 
-
-
 	private static String formatNonSharedActions(Set<String> actions, 
 			String fileName1, String fileName2, ArrayList<String> nextNames, String parameters) {
 		String save = "";
@@ -188,6 +166,26 @@ public class ExtKripke {
 		}
 		return save;
 	}
+	
+    public ExtKripke() {
+    	this.initStates = new HashSet<>();
+        this.allStates = new HashSet<>();
+        this.badStates = new HashSet<>();
+        this.delta = new HashSet<>();
+        this.deltaActions = new HashMap<>();
+        this.deltaActionsWithParams = new HashMap<>();
+    	this.envStates = new HashSet<>();
+    }
+
+    public ExtKripke(final ExtKripke src) {
+    	this.initStates = new HashSet<>(src.initStates);
+    	this.allStates = new HashSet<>(src.allStates);
+    	this.badStates = new HashSet<>(src.badStates);
+    	this.delta = new HashSet<>(src.delta);
+    	this.deltaActions = new HashMap<>(src.deltaActions);
+    	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
+    	this.envStates = new HashSet<>(src.envStates);
+    }
 
 	// assumes that the state space of srcClosed is more refined than the state space of srcM.
 	// this assumption is generally valid because the closed system is composed of M, and hence
