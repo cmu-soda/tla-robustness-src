@@ -23,14 +23,6 @@ import tla2sany.parser.SyntaxTreeNode;
 
 
 public class ExtKripke {
-	private static final String UNCHANGED = "UNCHANGED";
-	private static final String INSTANCE = "INSTANCE";
-	private static final String VARIABLES = "VARIABLES";
-	private static final String WITH = "WITH";
-	private static final String VARS = "Vars";
-	private static final String NEXT = "Next";
-	private static final String INIT = "Init";
-	private static final String TYPE_OK = "TypeOK";
     
     private enum BoundaryType {
     	safety, error
@@ -43,6 +35,14 @@ public class ExtKripke {
     private Map<Pair<EKState,EKState>, String> deltaActions;
     private Map<Pair<EKState,EKState>, Set<String>> deltaActionsWithParams;
     private Set<EKState> envStates;
+	private static final String UNCHANGED = "UNCHANGED";
+	private static final String INSTANCE = "INSTANCE";
+	private static final String VARIABLES = "VARIABLES";
+	private static final String WITH = "WITH";
+	private static final String VARS = "Vars";
+	private static final String NEXT = "Next";
+	private static final String INIT = "Init";
+	private static final String TYPE_OK = "TypeOK";
 
     public ExtKripke() {
     	this.initStates = new HashSet<>();
@@ -89,6 +89,7 @@ public class ExtKripke {
 		final Set<String> mutualActs = Utils.intersection(act1, act2);
 		final Set<String> onlyAct1 = Utils.setMinus(act1, mutualActs);
 		final Set<String> onlyAct2 = Utils.setMinus(act2, mutualActs);
+		
 		FastTool ft1 = (FastTool) tlc1.tool;
 		FastTool ft2 = (FastTool) tlc2.tool;
 
