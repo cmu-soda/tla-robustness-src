@@ -450,7 +450,7 @@ public class ExtKripke {
     }
     
     public String toFSP() {
-    	Utils.assertTrue(this.initStates.size() == 1, "We only support 1 init state for right now");
+    	//Utils.assertTrue(this.initStates.size() == 1, "We only support 1 init state for right now");
     	
     	StringBuilder builder = new StringBuilder();
 
@@ -463,26 +463,31 @@ public class ExtKripke {
     		stateNames.put(s, name);
     	}
     	
+    	String fsp = "";
     	// generate FSP
     	String initStateDef = "";
     	ArrayList<String> nonInitStateDefs = new ArrayList<>();
-    	for (final EKState s : this.allStates) {
-    		final String name = stateNames.get(s);
-    		final Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
-    		final String actions = outgoing
-    			.stream()
-    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
-    			.collect(Collectors.joining(" | "));
-    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
-    		final String stateDef = name + actionBody;
-    		if (this.initStates.contains(s)) {
-    			//System.out.println("init state: " + name);
-    			initStateDef = stateDef;
-    		} else {
-        		nonInitStateDefs.add(stateDef);
-    		}
-    	}
-    	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
+//		for (EKState st : this.initStates) {
+			for (final EKState s : this.allStates) {
+	    		final String name = stateNames.get(s);
+	    		final Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
+	    		final String actions = outgoing
+	    			.stream()
+	    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
+	    			.collect(Collectors.joining(" | "));
+	    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
+	    		final String stateDef = name + actionBody;
+	    		if (initStates.contains(s)) {
+	    			initStateDef = stateDef;
+	    		} else {
+	        		nonInitStateDefs.add(stateDef);
+	    		}
+	    	}
+			
+		   	fsp += initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".\n";
+//		}
+    	
+    	System.out.println(this.initStates);
     	return fsp;
     }
     

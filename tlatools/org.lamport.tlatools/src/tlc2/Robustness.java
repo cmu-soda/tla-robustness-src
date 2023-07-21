@@ -51,30 +51,27 @@ public class Robustness {
 	 * We compute whether \eta(spec1,P) \subseteq \eta(spec2,P)
 	 */
     public static void calc(String[] args) {
-    	/*
+ 
     	// TODO add functionality for compareSpecToEnvironment
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
     	if (args.length == 4 && args[0].equals("--prop")) {
     		compareSpecToProperty(args, jsonStrs, jsonLists);
-    	}
-    	else if (args.length == 6 && args[0].equals("--env")) {
+    	} else if (args.length == 6 && args[0].equals("--env")) {
     		compareSpecToEnvironment(args, jsonStrs, jsonLists);
-    	}
-    	else if (args.length == 6 && args[0].equals("--cmp")) {
+    	} else if (args.length == 6 && args[0].equals("--cmp")) {
     		compareSpecs(args, jsonStrs, jsonLists);
-    	}
-    	else {
+    	} else if (args.length == 3 && args[0].equals("--to-fsp")) {
+        	toFSP(args);
+    	} else {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
-    	System.out.println(Utils.asJson(jsonStrs, jsonLists));
-    	*/
-    	toFSP(args);
+    	System.out.println(Utils.asJson(jsonStrs, jsonLists));	
     }
     
     private static void toFSP(String[] args) {
-    	final String tla = args[0];
-    	final String cfg = args[1];
+    	final String tla = args[1];
+    	final String cfg = args[2];
     	
     	// initialize and run TLC
     	TLC tlc = new TLC("tlc");
@@ -85,7 +82,6 @@ public class Robustness {
     		System.err.println("The spec is malformed.");
     		return;
     	}
-    	
     	System.out.println(tlc.getKripke().toFSP());
     }
     
