@@ -59,7 +59,6 @@ public class Robustness {
     	// TODO add functionality for compareSpecToEnvironment
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
-<<<<<<< HEAD
     	if (args.length == 4 && args[0].equals("--prop")) {
     		compareSpecToProperty(args, jsonStrs, jsonLists);
     	} else if (args.length == 6 && args[0].equals("--env")) {
@@ -72,30 +71,7 @@ public class Robustness {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
     	System.out.println(Utils.asJson(jsonStrs, jsonLists));	
-=======
-    	
-    	if (args.length == 5 && args[0].equals("--compose")) {
-    		System.out.println(ExtKripke.composeSpecs(args));
-    	} else {
-    	  	
-        	if (args.length == 4 && args[0].equals("--prop")) {
-        		compareSpecToProperty(args, jsonStrs, jsonLists);
-        	}
-        	else if (args.length == 6 && args[0].equals("--env")) {
-        		compareSpecToEnvironment(args, jsonStrs, jsonLists);
-        	}
-        	else if (args.length == 6 && args[0].equals("--cmp")) {
-        		compareSpecs(args, jsonStrs, jsonLists);
-        	}
-        	else {
-        		System.out.println(USAGE); 
-        		return;
-        	}
-        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
-    	}
-    	*/
-    	toFSP(args);
->>>>>>> a3377b8389dc2f43e997f5a802f7ef4253ff9929
+
     }
     
     private static void toFSP(String[] args) {
