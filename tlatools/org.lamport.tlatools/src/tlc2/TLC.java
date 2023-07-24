@@ -27,6 +27,9 @@ import java.util.regex.Pattern;
 
 import model.InJarFilenameToStream;
 import model.ModelInJar;
+import tla2sany.parser.SyntaxTreeNode;
+import tla2sany.semantic.OpApplNode;
+import tla2sany.semantic.OpDefNode;
 import tlc2.debug.TLCDebugger;
 import tlc2.output.EC;
 import tlc2.output.ErrorTraceMessagePrinterRecorder;
@@ -94,7 +97,17 @@ public class TLC {
 	 * Whether the TLA+ spec is encoded in a .jar file, not a TLA+ text file.
 	 */
     private static boolean MODEL_PART_OF_JAR = false;
-    
+	
+	public static OpApplNode getTransitionRelationNode(FastTool ft, TLC tlc, String name) {
+		try {
+			TLC.currentInstance = tlc;
+			OpDefNode myNode = (OpDefNode)ft.getSpecProcessor().getDefns().get(name);
+			return (OpApplNode)myNode.getBody(); 
+		} finally {
+			TLC.currentInstance = null;
+		}
+	}
+	
     // thank you https://stackoverflow.com/questions/9882487/how-can-i-disable-system-out-for-speed-in-java
     private static final PrintStream SUPRESS_ALL_OUTPUT_PRINT_STREAM =
     		new java.io.PrintStream(new java.io.OutputStream() {
