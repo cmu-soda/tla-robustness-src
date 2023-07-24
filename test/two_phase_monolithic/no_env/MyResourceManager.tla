@@ -1,4 +1,4 @@
-------------------------------- MODULE ResourceManager ----------------------------- 
+------------------------------- MODULE MyResourceManager ----------------------------- 
 
 VARIABLES rmState
 

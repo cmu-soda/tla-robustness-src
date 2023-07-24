@@ -1,4 +1,4 @@
-------------------------------- MODULE TransactionManager ----------------------------- 
+------------------------------- MODULE MyTransactionManager ----------------------------- 
 
 VARIABLES tmState, tmPrepared
 
