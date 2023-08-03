@@ -588,7 +588,7 @@ public class ExtKripke {
     }
     
     public String toFSP() {
-    	//Utils.assertTrue(this.initStates.size() == 1, "We only support 1 init state for right now");
+    	Utils.assertTrue(this.initStates.size() == 1, "We only support 1 init state for right now");
     	
     	StringBuilder builder = new StringBuilder();
 
@@ -604,32 +604,24 @@ public class ExtKripke {
     	// generate FSP
     	String initStateDef = "";
     	ArrayList<String> nonInitStateDefs = new ArrayList<>();
-    	Set<Pair<String, EKState>> outgoing = new HashSet<>();
-    	
-    	//may help adding multiple initial states 
-		for (EKState st : this.initStates) {
-    		outgoing.addAll(outgoingTransitions(st));
-		}
-		for (final EKState s : this.allStates) {
+    	for (final EKState s : this.allStates) {
     		final String name = stateNames.get(s);
-    		outgoing.addAll(outgoingTransitions(s));
+    		final Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
     		final String actions = outgoing
     			.stream()
     			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
     			.collect(Collectors.joining(" | "));
     		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
     		final String stateDef = name + actionBody;
-    		if (initStates.contains(s)) {
+    		if (this.initStates.contains(s)) {
+    			//System.out.println("init state: " + name);
     			initStateDef = stateDef;
     		} else {
         		nonInitStateDefs.add(stateDef);
     		}
-    	}	
-//    	System.out.println(initStates);
-//		
-//		System.out.println(outgoing);
-    	
-    	return initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
+    	}
+    	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
+    	return fsp;
     }
     
     public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {
