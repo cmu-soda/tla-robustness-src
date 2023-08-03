@@ -6,13 +6,10 @@ SelectCoffee == (t = 0 /\ t' = 212) \/ (t = 1 /\ t' = 213)
 
 SelectTea == (t = 213 /\ t' = 215)
 
-SelectHotChocolate == t' = 212
-
-Init == t \in {0, 1}
+Init == t = 0
 
 Next == \/ SelectCoffee
         \/ SelectTea
-        \/ SelectHotChocolate
  
 Spec == Init /\ [][Next]_t
 

@@ -67,6 +67,8 @@ public class Robustness {
     		compareSpecs(args, jsonStrs, jsonLists);
     	} else if (args.length == 3 && args[0].equals("--to-fsp")) {
         	toFSP(args);
+    	} else if (args.length == 5 && args[0].equals("--compose")) {
+    		System.out.println(ExtKripke.composeSpecs(args));
     	} else {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}

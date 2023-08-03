@@ -4,6 +4,7 @@
 package tlc2.tool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -600,32 +601,35 @@ public class ExtKripke {
     		stateNames.put(s, name);
     	}
     	
-    	String fsp = "";
     	// generate FSP
     	String initStateDef = "";
     	ArrayList<String> nonInitStateDefs = new ArrayList<>();
-//		for (EKState st : this.initStates) {
-			for (final EKState s : this.allStates) {
-	    		final String name = stateNames.get(s);
-	    		final Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
-	    		final String actions = outgoing
-	    			.stream()
-	    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
-	    			.collect(Collectors.joining(" | "));
-	    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
-	    		final String stateDef = name + actionBody;
-	    		if (initStates.contains(s)) {
-	    			initStateDef = stateDef;
-	    		} else {
-	        		nonInitStateDefs.add(stateDef);
-	    		}
-	    	}
-			
-		   	fsp += initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".\n";
-//		}
+    	Set<Pair<String, EKState>> outgoing = new HashSet<>();
     	
-    	System.out.println(this.initStates);
-    	return fsp;
+		for (EKState st : this.initStates) {
+    		outgoing.addAll(outgoingTransitions(st));
+		}
+		for (final EKState s : this.allStates) {
+    		final String name = stateNames.get(s);
+    		//Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
+    		outgoing.addAll(outgoingTransitions(s));
+    		final String actions = outgoing
+    			.stream()
+    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
+    			.collect(Collectors.joining(" | "));
+    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
+    		final String stateDef = name + actionBody;
+    		if (initStates.contains(s)) {
+    			initStateDef = stateDef;
+    		} else {
+        		nonInitStateDefs.add(stateDef);
+    		}
+    	}	
+//    	System.out.println(initStates);
+//		
+//		System.out.println(outgoing);
+    	
+    	return initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
     }
     
     public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {
