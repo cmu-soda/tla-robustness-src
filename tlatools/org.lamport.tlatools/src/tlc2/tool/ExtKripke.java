@@ -606,12 +606,12 @@ public class ExtKripke {
     	ArrayList<String> nonInitStateDefs = new ArrayList<>();
     	Set<Pair<String, EKState>> outgoing = new HashSet<>();
     	
+    	//may help adding multiple initial states 
 		for (EKState st : this.initStates) {
     		outgoing.addAll(outgoingTransitions(st));
 		}
 		for (final EKState s : this.allStates) {
     		final String name = stateNames.get(s);
-    		//Set<Pair<String, EKState>> outgoing = outgoingTransitions(s);
     		outgoing.addAll(outgoingTransitions(s));
     		final String actions = outgoing
     			.stream()
