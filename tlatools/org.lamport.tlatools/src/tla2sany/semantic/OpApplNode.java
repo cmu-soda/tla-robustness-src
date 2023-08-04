@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.w3c.dom.Document;
@@ -225,6 +226,22 @@ public class OpApplNode extends ExprNode implements ExploreNode {
     this.ranges = rs;
     this.operator = Context.getGlobalContext().getSymbol(us);
      // operator.match( this, mn );
+  }
+  
+  @Override
+  public void stateVarVisit(Set<String> vars) {
+	  final SymbolNode op = this.getOperator();
+	  if (op.getKind() == VariableDeclKind) {
+		  //final OpDeclNode varNode = (OpDeclNode) op;
+		  final String name = op.getName().toString();
+		  vars.add(name);
+	  }
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.stateVarVisit(vars);
+		  }
+	  }
   }
 
   /**

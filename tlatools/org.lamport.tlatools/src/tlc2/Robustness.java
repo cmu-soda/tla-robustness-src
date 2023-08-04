@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import tla2sany.semantic.OpDefNode;
 import tlc2.RobustDiffRep.SpecScope;
 import tlc2.tool.Action;
 import tlc2.tool.EKState;
@@ -55,7 +56,7 @@ public class Robustness {
 	 * We compute whether \eta(spec1,P) \subseteq \eta(spec2,P)
 	 */
     public static void calc(String[] args) {
- 
+    	/*
     	// TODO add functionality for compareSpecToEnvironment
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
@@ -72,8 +73,37 @@ public class Robustness {
     	} else {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
-    	System.out.println(Utils.asJson(jsonStrs, jsonLists));	
-
+    	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+    	*/
+    	
+    	propertyVariables(args);
+    }
+    
+    private static void propertyVariables(String[] args) {
+    	final String tla = args[0];
+    	final String cfg = args[1];
+    	
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC("tlc");
+    	tlc.initialize(tla, cfg);
+    	
+    	final FastTool ft = (FastTool) tlc.tool;
+		final String[] varNames = ft.getVarNames();
+    	for (Action inv : ft.getInvariants()) {
+    		final OpDefNode opNode = inv.getOpDef();
+    		Set<String> stateVarNames = new HashSet<>();
+    		opNode.stateVarVisit(stateVarNames);
+    		System.out.println("#sv names: " + stateVarNames.size());
+    		for (final String sv : stateVarNames) {
+    			System.out.println("  " + sv);
+    		}
+    	}
+    	
+    	System.out.println();
+    	System.out.println("Inv names:");
+    	for (String a : ft.getInvNames()) {
+    		System.out.println(a);
+    	}
     }
     
     private static void toFSP(String[] args) {

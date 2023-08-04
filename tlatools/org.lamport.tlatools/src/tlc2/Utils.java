@@ -103,9 +103,16 @@ public class Utils {
 			throw new RuntimeException(msg);
 		}
 	}
+	
+	public static void assertNull(final Object obj, final String msg) {
+		if (obj != null) {
+			throw new RuntimeException("Null assertion failed with message: " + msg);
+		}
+	}
+	
 	public static void assertNotNull(final Object obj, final String msg) {
 		if (obj == null) {
-			throw new RuntimeException("Null assertion failed with message: " + msg);
+			throw new RuntimeException("Not-null assertion failed with message: " + msg);
 		}
 	}
 	

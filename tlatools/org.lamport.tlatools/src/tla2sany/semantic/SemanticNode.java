@@ -9,7 +9,8 @@ import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
+//import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
@@ -37,7 +38,8 @@ public abstract class SemanticNode
 
   private static final Object[] EmptyArr = new Object[0];
 
-  private static final AtomicInteger uid = new AtomicInteger();  // the next unique ID for any semantic node
+  //private static final AtomicInteger uid = new AtomicInteger();  // the next unique ID for any semantic node
+  private static int uid = Integer.MIN_VALUE;
 
   protected static Errors errors;
 
@@ -49,7 +51,8 @@ public abstract class SemanticNode
                                //   strongly correlated with the Java type of the node
 
   public SemanticNode(int kind, TreeNode stn) {
-    myUID = uid.getAndIncrement();
+    //myUID = uid.getAndIncrement();
+    myUID = uid++;
     this.kind = kind;
     this.stn = stn;
     this.tools = EmptyArr;
@@ -65,6 +68,14 @@ public abstract class SemanticNode
       case TemporalLevel: return level + " (Temporal)";
       default:            return level + " (Illegal)";
     }
+  }
+  
+  public void stateVarVisit(Set<String> vars) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.stateVarVisit(vars);
+		  }
+	  }
   }
 
   /**

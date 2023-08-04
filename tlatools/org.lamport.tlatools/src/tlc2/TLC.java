@@ -398,24 +398,16 @@ public class TLC {
     	}
     }
     
-    public static void runTLC(final String tla, final String cfg, TLC tlc) {
-    	runTLC(tla, cfg, tlc, true);
-    }
-    
-    public static void runTLC(final String tla, final String cfg, TLC tlc, boolean supressTLCOutput) {
-    	if (TLC.currentInstance != null) {
-    		throw new RuntimeException("Cannot run multiple instances of TLC at once!");
-    	}
-    	TLC.currentInstance = tlc;
+    public void initialize(final String tla, final String cfg) {
+    	Utils.assertNull(TLC.currentInstance, "Cannot run multiple instances of TLC at once!");
+    	TLC.currentInstance = this;
     	
     	final String[] args = new String[] {"-deadlock", "-config", cfg, tla};
     	PrintStream origPrintStream = System.out;
-    	if (supressTLCOutput) {
-    		System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
-    	}
+    	System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
 
         // Try to parse parameters.
-        if (!tlc.handleParameters(args)) {
+        if (!this.handleParameters(args)) {
             // This is a tool failure. We must exit with a non-zero exit
             // code or else we will mislead system tools and scripts into
             // thinking everything went smoothly.
@@ -426,7 +418,7 @@ public class TLC {
             System.exit(1);
         }
         
-        if (!tlc.checkEnvironment()) {
+        if (!this.checkEnvironment()) {
             System.exit(1);
         }
 
@@ -435,7 +427,7 @@ public class TLC {
 			// There was not spec file given, it instead exists in the
 			// .jar file being executed. So we need to use a special file
 			// resolver to parse it.
-			tlc.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
+			this.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
 		} else {
 			// The user passed us a spec file directly. To ensure we can
 			// recover it during semantic parsing, we must include its
@@ -443,19 +435,39 @@ public class TLC {
 			//
 			// If the spec file has no parent directory, use the "standard"
 			// library paths provided by SimpleFilenameToStream.
-			final String dir = FileUtil.parseDirname(tlc.getMainFile());
+			final String dir = FileUtil.parseDirname(this.getMainFile());
 			if (!dir.isEmpty()) {
-				tlc.setResolver(new SimpleFilenameToStream(dir));
+				this.setResolver(new SimpleFilenameToStream(dir));
 			} else {
-				tlc.setResolver(new SimpleFilenameToStream());
+				this.setResolver(new SimpleFilenameToStream());
 			}
 		}
+		
+		// only necessary if the consumer calls initialize() directly (i.e. not as a part of modelCheck())
+		tool = new FastTool(mainFile, configFile, resolver, params);
+        
+        System.setOut(origPrintStream);
+        TLC.currentInstance = null;
+    }
+    
+    public static void modelCheck(final String tla, final String cfg, TLC tlc) {
+    	Utils.assertNull(TLC.currentInstance, "Cannot run multiple instances of TLC at once!");
+    	tlc.initialize(tla, cfg);
+    	Utils.assertNull(TLC.currentInstance, "Issue with initialization!");
+    	TLC.currentInstance = tlc;
+
+    	PrintStream origPrintStream = System.out;
+    	System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
 		
 		// Execute TLC.
         final int errorCode = tlc.process();
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
+    }
+    
+    public static void runTLC(final String tla, final String cfg, TLC tlc) {
+    	modelCheck(tla, cfg, tlc);
     }
     
     public boolean hasInvariant(final String inv) {
