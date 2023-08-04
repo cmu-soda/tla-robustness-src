@@ -56,27 +56,40 @@ public class Robustness {
 	 * We compute whether \eta(spec1,P) \subseteq \eta(spec2,P)
 	 */
     public static void calc(String[] args) {
-    	/*
-    	// TODO add functionality for compareSpecToEnvironment
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
+    	
+    	// robustness functionality
+    	// TODO add functionality for compareSpecToEnvironment
     	if (args.length == 4 && args[0].equals("--prop")) {
     		compareSpecToProperty(args, jsonStrs, jsonLists);
-    	} else if (args.length == 6 && args[0].equals("--env")) {
+        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+    	}
+    	else if (args.length == 6 && args[0].equals("--env")) {
     		compareSpecToEnvironment(args, jsonStrs, jsonLists);
-    	} else if (args.length == 6 && args[0].equals("--cmp")) {
+        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+    	}
+    	else if (args.length == 6 && args[0].equals("--cmp")) {
     		compareSpecs(args, jsonStrs, jsonLists);
-    	} else if (args.length == 3 && args[0].equals("--to-fsp")) {
-        	toFSP(args);
-    	} else if (args.length == 5 && args[0].equals("--compose")) {
+        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+    	}
+    	
+    	// convert a TLA+ spec to FSP
+    	else if (args.length == 3 && args[0].equals("--to-fsp")) {
+    		toFSP(args);
+    	}
+    	
+    	// compose two TLA+ specs
+    	else if (args.length == 5 && args[0].equals("--compose")) {
     		System.out.println(ExtKripke.composeSpecs(args));
-    	} else {
+    	}
+    	
+    	// invalid args, display usage
+    	else {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
-    	System.out.println(Utils.asJson(jsonStrs, jsonLists));
-    	*/
     	
-    	propertyVariables(args);
+    	//propertyVariables(args);
     }
     
     private static void propertyVariables(String[] args) {
