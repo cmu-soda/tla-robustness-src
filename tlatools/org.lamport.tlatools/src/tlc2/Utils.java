@@ -14,9 +14,13 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import tla2sany.semantic.OpDefNode;
+import tlc2.tool.Action;
 import tlc2.tool.EKState;
 import tlc2.tool.TLCState;
+import tlc2.value.impl.Value;
 
 public class Utils {
 	private static final String QUOTE = "\"";
@@ -76,6 +80,19 @@ public class Utils {
     		}
     	}
     	return DEFAULT_MAX_NEG_EXAMPLES;
+    }
+    
+    
+    /* action utils */
+    
+    public static List<String> actionParams(Action act) {
+    	final Map<String, Value> mp = act.con.toStrMap();
+    	final OpDefNode opNode = act.getOpDef();
+    	// use list so we get the keys in the right order
+    	return Utils.toArrayList(opNode.getParams())
+        		.stream()
+        		.map(p -> p.getSignature())
+        		.collect(Collectors.toList());
     }
 
 	

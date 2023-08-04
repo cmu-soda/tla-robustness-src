@@ -162,6 +162,27 @@ public final class Context implements Iterator<Context> {
 
 		return res;
 	}
+
+	public final Map<String, Value> toStrMap() {
+		if (this.name == null) {
+			if (this == Empty) {
+				return new HashMap<>();
+			}
+			return this.next.toStrMap();
+		}
+		final Map<String, Value> res = new HashMap<>();
+		res.put(this.name.getName().toString(),
+				this.value instanceof Value ? (Value) this.value : new StringValue(this.value.toString()));
+
+		Context cur;
+		for (cur = this.next; cur.name != null; cur = cur.next) {
+			res.put(cur.name.getName().toString(),
+					cur.value instanceof Value ? (Value) cur.value : new StringValue(cur.value.toString()));
+		}
+		res.putAll(cur.toStrMap());
+
+		return res;
+	}
 	
 	public final StringBuffer toString(StringBuffer sb) {
 		if (this.name == null) {

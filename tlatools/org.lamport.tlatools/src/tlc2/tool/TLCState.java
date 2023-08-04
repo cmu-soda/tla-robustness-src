@@ -120,6 +120,18 @@ public abstract class TLCState implements Cloneable, Serializable {
     return valMap;
   }
   
+  public final String lookupValAsStr(String lookup) {
+	for(int i = 0; i < vars.length; i++) {
+        UniqueString key = vars[i].getName();
+        final String sKey = key.toString();
+        if (lookup.equals(sKey)) {
+            IValue val = this.lookup(key);
+            return val.toString();
+        }
+    }
+    return null;
+  }
+  
   public final OpDeclNode[] getVars() {
 	  return vars;
   }

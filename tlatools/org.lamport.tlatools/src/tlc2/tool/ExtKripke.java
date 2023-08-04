@@ -4,46 +4,38 @@
 package tlc2.tool;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import tlc2.TLC;
 import tlc2.Utils;
 import tlc2.Utils.Pair;
+import tlc2.value.impl.Value;
 
 import java.lang.StringBuilder;
 import tlc2.tool.impl.FastTool;
-import java.util.stream.Collectors;
 
 import tla2sany.parser.SyntaxTreeNode;
-import tla2sany.semantic.AnyDefNode;
-import tla2sany.semantic.ExprNode;
-import tla2sany.semantic.ExprOrOpArgNode;
-import tla2sany.semantic.FormalParamNode;
-import tla2sany.semantic.OpDefNode;
-import tla2sany.semantic.SemanticNode;
-import tla2sany.utilities.Strings;
-import tlc2.tool.impl.ModelConfig;
-import util.MonolithSpecExtractor;
-import util.UniqueString;
-import tla2sany.semantic.OpApplNode;
 
 
 public class ExtKripke {
-
-	private enum BoundaryType {
-		safety, error
-	}
-
-	private Set<EKState> initStates;
-	private Set<EKState> allStates;
-	private Set<EKState> badStates;
-	private Set<Pair<EKState,EKState>> delta;
-	private Map<Pair<EKState,EKState>, String> deltaActions;
-	private Set<EKState> envStates;
+    
+    private enum BoundaryType {
+    	safety, error
+    }
+    
+    private Set<EKState> initStates;
+    private Set<EKState> allStates;
+    private Set<EKState> badStates;
+    private Set<Pair<EKState,EKState>> delta;
+    private Map<Pair<EKState,EKState>, String> deltaActions;
+    private Map<Pair<EKState,EKState>, Set<String>> deltaActionsWithParams;
+    private Set<EKState> envStates;
 	private static final String UNCHANGED = "UNCHANGED";
 	private static final String INSTANCE = "INSTANCE";
 	private static final String VARIABLES = "VARIABLES";
@@ -78,7 +70,7 @@ public class ExtKripke {
 		final Set<String> mutualActs = Utils.intersection(act1, act2);
 		final Set<String> onlyAct1 = Utils.setMinus(act1, mutualActs);
 		final Set<String> onlyAct2 = Utils.setMinus(act2, mutualActs);
-
+		
 		FastTool ft1 = (FastTool) tlc1.tool;
 		FastTool ft2 = (FastTool) tlc2.tool;
 
@@ -145,9 +137,9 @@ public class ExtKripke {
 
 		return full;
 	}
-
-
-
+	
+	
+	
 	private static String formatInstance(String fileName, ArrayList<String> vars) {
 		String save = "";
 		save += fileName + 
@@ -165,8 +157,6 @@ public class ExtKripke {
 		return save;
 	}
 
-
-
 	private static String formatNonSharedActions(Set<String> actions, 
 			String fileName1, String fileName2, ArrayList<String> nextNames, String parameters) {
 		String save = "";
@@ -177,24 +167,28 @@ public class ExtKripke {
 		}
 		return save;
 	}
+	
+	
+	
+    public ExtKripke() {
+    	this.initStates = new HashSet<>();
+        this.allStates = new HashSet<>();
+        this.badStates = new HashSet<>();
+        this.delta = new HashSet<>();
+        this.deltaActions = new HashMap<>();
+        this.deltaActionsWithParams = new HashMap<>();
+    	this.envStates = new HashSet<>();
+    }
 
-	public ExtKripke() {
-		this.initStates = new HashSet<>();
-		this.allStates = new HashSet<>();
-		this.badStates = new HashSet<>();
-		this.delta = new HashSet<>();
-		this.deltaActions = new HashMap<>();
-		this.envStates = new HashSet<>();
-	}
-
-	public ExtKripke(final ExtKripke src) {
-		this.initStates = new HashSet<>(src.initStates);
-		this.allStates = new HashSet<>(src.allStates);
-		this.badStates = new HashSet<>(src.badStates);
-		this.delta = new HashSet<>(src.delta);
-		this.deltaActions = new HashMap<>(src.deltaActions);
-		this.envStates = new HashSet<>(src.envStates);
-	}
+    public ExtKripke(final ExtKripke src) {
+    	this.initStates = new HashSet<>(src.initStates);
+    	this.allStates = new HashSet<>(src.allStates);
+    	this.badStates = new HashSet<>(src.badStates);
+    	this.delta = new HashSet<>(src.delta);
+    	this.deltaActions = new HashMap<>(src.deltaActions);
+    	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
+    	this.envStates = new HashSet<>(src.envStates);
+    }
 
 	// assumes that the state space of srcClosed is more refined than the state space of srcM.
 	// this assumption is generally valid because the closed system is composed of M, and hence
@@ -255,18 +249,33 @@ public class ExtKripke {
 		badStates.add(eks);
 	}
 
-	public void addTransition(Action act, TLCState src, TLCState dst) {
-		final String srcName = Utils.normalizeStateString(src.toString());
-		final String dstName = Utils.normalizeStateString(dst.toString());
-		final EKState srcEks = new EKState(srcName);
-		final EKState dstEks = new EKState(dstName);
-		final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
+    public void addTransition(Action act, TLCState src, TLCState dst) {
+    	final String srcName = Utils.normalizeStateString(src.toString());
+    	final String dstName = Utils.normalizeStateString(dst.toString());
+    	final EKState srcEks = new EKState(srcName);
+    	final EKState dstEks = new EKState(dstName);
+    	final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
+    	
+    	final String actName = act.getName().toString();
+    	Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
+    	delta.add(transition);
+    	deltaActions.put(transition, actName);
 
-		final String actName = act.getName().toString();
-		Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
-		delta.add(transition);
-		deltaActions.put(transition, actName);
-	}
+    	// add param values to the action
+    	final List<String> paramKeys = Utils.actionParams(act);
+    	final Map<String, Value> mp = act.con.toStrMap();
+    	ArrayList<String> params = new ArrayList<>();
+    	for (final String k : paramKeys) {
+    		final Value val = mp.get(k);
+    		final String sk = val.toString().replace("\"", "");
+    		params.add(sk);
+    	}
+    	final String actNameWParams = actName + "_" + String.join("_", params);
+    	if (!deltaActionsWithParams.containsKey(transition)) {
+        	deltaActionsWithParams.put(transition, new HashSet<>());
+    	}
+    	deltaActionsWithParams.get(transition).add(actNameWParams);
+    }
 
 
 	// post-processing
@@ -424,19 +433,19 @@ public class ExtKripke {
 		Map<String, Set<EKState>> groupedBoundaries = new HashMap<>();
 		for (EKState s : entireBoundary) {
 			final EKState boundaryState = s;
-			for (EKState t : succ(s)) {
-				Pair<EKState,EKState> transition = new Pair<>(s,t);
-				if (this.delta.contains(transition) && errorStates.contains(t)) {
-					final String act = this.deltaActions.get(transition);
-					if (!groupedBoundaries.containsKey(act)) {
-						groupedBoundaries.put(act, new HashSet<>());
-					}
-					groupedBoundaries.get(act).add(boundaryState);
-				}
-			}
-		}
-		return groupedBoundaries;
-	}
+    		for (EKState t : succ(s)) {
+    			Pair<EKState,EKState> transition = new Pair<>(s,t);
+    			if (this.delta.contains(transition) && errorStates.contains(t)) {
+    				final String act = this.deltaActions.get(transition);
+    				if (!groupedBoundaries.containsKey(act)) {
+    					groupedBoundaries.put(act, new HashSet<>());
+    				}
+    				groupedBoundaries.get(act).add(boundaryState);
+    			}
+    		}
+    	}
+    	return groupedBoundaries;
+    }
 
 	private Set<EKState> succ(EKState s) {
 		Set<EKState> succStates = new HashSet<>();
@@ -447,6 +456,35 @@ public class ExtKripke {
 		}
 		return succStates;
 	}
+    
+    private Set<String> enabledActions(EKState s) {
+    	Set<String> enabled = new HashSet<>();
+    	for (Pair<EKState,EKState> t : this.delta) {
+    		if (s.equals(t.first)) {
+    			final String a = this.deltaActions.get(t);
+    			enabled.add(a);
+    		}
+    	}
+    	return enabled;
+    }
+    
+    /**
+     * Includes the param names in the action
+     * @param s
+     * @return
+     */
+    private Set<Pair<String, EKState>> outgoingTransitions(EKState s) {
+    	Set<Pair<String, EKState>> outgoing = new HashSet<>();
+    	for (Pair<EKState,EKState> t : this.delta) {
+    		if (s.equals(t.first)) {
+    			for (final String a : this.deltaActionsWithParams.get(t)) {
+        			final Pair<String, EKState> p = new Pair<String, EKState>(a, t.second);
+        			outgoing.add(p);
+    			}
+    		}
+    	}
+    	return outgoing;
+    }
 
 	private Set<EKState> notAlwaysNotPhiStates() {
 		Set<EKState> states = new HashSet<>();
@@ -517,65 +555,117 @@ public class ExtKripke {
 				rep.add(new Pair<EKState,String>(s, act));
 			}
 		}
-		return rep;
-	}
-
-	private static Set<EKState> mutualReach(final ExtKripke m1, final ExtKripke m2) {
-		Set<EKState> reach = new HashSet<>();
-		Set<EKState> mutualInit = Utils.intersection(m1.initStates, m2.initStates);
-		Set<Pair<EKState,EKState>> mutualDelta = Utils.intersection(m1.delta, m2.delta);
-		for (EKState init : mutualInit) {
-			mutualReach(mutualDelta, init, reach);
-		}
-		return reach;
-	}
-
-	private static void mutualReach(final Set<Pair<EKState,EKState>> mutualDelta, final EKState init, Set<EKState> reach) {
-		reach.add(init);
-		for (Pair<EKState,EKState> t : mutualDelta) {
-			if (init.equals(t.first)) {
-				EKState succ = t.second;
-				if (!reach.contains(succ)) {
-					mutualReach(mutualDelta, succ, reach);
-				}
-			}
-		}
-	}
-
-
-	// print a TLA+ spec
-
-	public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {
-		StringBuilder builder = new StringBuilder();
-
-		//String initOp = "Init_" + tag;
-		//String nextOp = "Next_" + tag;
-		//String specOp = "Spec_" + tag;
-		final String initOp = "Init";
-		final String nextOp = "Next";
-		final String specOp = "Spec";
-
-		// Init operator
-		builder.append(initOp).append(" ==\n  ").append(initExpr());
-		builder.append("\n\n");
-
-		// Next operator
-		builder.append(nextOp).append(" ==\n  ").append(nextExpr());
-		builder.append("\n\n");
-
-		// Spec operator
-		builder.append(specOp).append(" == ")
-		.append(initOp).append(" /\\ [][")
-		.append(nextOp).append("]_").append(varsSeqName);
-		if (!specFairness.isEmpty() && !strongFairness) {
-			builder.append(" /\\ ").append(specFairness);
-		}
-		if (strongFairness) {
-			builder.append(" /\\ SF_").append(varsSeqName).append("(").append(nextOp).append(")");
-		}
-
-		return builder.toString();
-	}
+    	return rep;
+    }
+    
+    private static Set<EKState> mutualReach(final ExtKripke m1, final ExtKripke m2) {
+    	Set<EKState> reach = new HashSet<>();
+    	Set<EKState> mutualInit = Utils.intersection(m1.initStates, m2.initStates);
+    	Set<Pair<EKState,EKState>> mutualDelta = Utils.intersection(m1.delta, m2.delta);
+    	for (EKState init : mutualInit) {
+        	mutualReach(mutualDelta, init, reach);
+    	}
+    	return reach;
+    }
+    
+    private static void mutualReach(final Set<Pair<EKState,EKState>> mutualDelta, final EKState init, Set<EKState> reach) {
+    	reach.add(init);
+    	for (Pair<EKState,EKState> t : mutualDelta) {
+    		if (init.equals(t.first)) {
+    			EKState succ = t.second;
+    			if (!reach.contains(succ)) {
+    				mutualReach(mutualDelta, succ, reach);
+    			}
+    		}
+    	}
+    }
+    
+    
+    // print a TLA+ spec
+    
+    private String toFSPAction(final String s) {
+    	return s.toLowerCase();
+    }
+    
+    public String toFSP() {
+    	// assign a name to each state
+    	int stateNum = 1;
+    	Map<EKState, String> stateNames = new HashMap<>();
+    	final String initStateName = "S0";
+    	for (final EKState s : this.allStates) {
+    		if (this.initStates.contains(s)) {
+        		stateNames.put(s, initStateName);
+    		}
+    		else {
+        		final int num = stateNum++;
+        		final String name = "S" + num;
+        		stateNames.put(s, name);
+    		}
+    	}
+    	
+    	// outgoing transitions for each state
+    	// TLA+ init states get squashed into a single FSP init state
+    	final Map<String, Set<Pair<String, EKState>>> outgoingPerState = new HashMap<>();
+    	for (final EKState s : this.allStates) {
+    		final String stateName = stateNames.get(s);
+    		final Set<Pair<String, EKState>> prevOutgoing = outgoingPerState.containsKey(stateName) ? outgoingPerState.get(stateName) : new HashSet<>();
+    		final Set<Pair<String, EKState>> newOutgoing = outgoingTransitions(s);
+    		final Set<Pair<String, EKState>> combineOutgoing = Utils.union(prevOutgoing, newOutgoing);
+    		outgoingPerState.put(stateName, combineOutgoing);
+    	}
+    	
+    	// generate FSP
+    	String initStateDef = "";
+    	ArrayList<String> nonInitStateDefs = new ArrayList<>();
+    	for (final String stateName : outgoingPerState.keySet()) {
+    		final Set<Pair<String, EKState>> outgoing = outgoingPerState.get(stateName);
+    		final String actions = outgoing
+    			.stream()
+    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
+    			.collect(Collectors.joining(" | "));
+    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
+    		final String stateDef = stateName + actionBody;
+    		if (stateName.equals(initStateName)) {
+    			initStateDef = stateDef;
+    		} else {
+        		nonInitStateDefs.add(stateDef);
+    		}
+    	}
+    	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
+    	return fsp;
+    }
+    
+    public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {
+    	StringBuilder builder = new StringBuilder();
+    	
+    	//String initOp = "Init_" + tag;
+    	//String nextOp = "Next_" + tag;
+    	//String specOp = "Spec_" + tag;
+    	final String initOp = "Init";
+    	final String nextOp = "Next";
+    	final String specOp = "Spec";
+    	
+    	// Init operator
+    	builder.append(initOp).append(" ==\n  ").append(initExpr());
+    	builder.append("\n\n");
+    	
+    	// Next operator
+    	builder.append(nextOp).append(" ==\n  ").append(nextExpr());
+    	builder.append("\n\n");
+    	
+    	// Spec operator
+    	builder.append(specOp).append(" == ")
+    		.append(initOp).append(" /\\ [][")
+    		.append(nextOp).append("]_").append(varsSeqName);
+    	if (!specFairness.isEmpty() && !strongFairness) {
+    		builder.append(" /\\ ").append(specFairness);
+    	}
+    	if (strongFairness) {
+    		builder.append(" /\\ SF_").append(varsSeqName).append("(").append(nextOp).append(")");
+    	}
+    	
+    	return builder.toString();
+    }
 
 	private String initExpr() {
 		if (this.initStates.isEmpty()) {

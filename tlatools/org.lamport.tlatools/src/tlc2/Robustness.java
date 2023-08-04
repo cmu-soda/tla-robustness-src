@@ -55,30 +55,41 @@ public class Robustness {
 	 * We compute whether \eta(spec1,P) \subseteq \eta(spec2,P)
 	 */
     public static void calc(String[] args) {
+ 
     	// TODO add functionality for compareSpecToEnvironment
     	Map<String,String> jsonStrs = new HashMap<>();
     	Map<String,List<String>> jsonLists = new HashMap<>();
-    	
-    	if (args.length == 5 && args[0].equals("--compose")) {
+    	if (args.length == 4 && args[0].equals("--prop")) {
+    		compareSpecToProperty(args, jsonStrs, jsonLists);
+    	} else if (args.length == 6 && args[0].equals("--env")) {
+    		compareSpecToEnvironment(args, jsonStrs, jsonLists);
+    	} else if (args.length == 6 && args[0].equals("--cmp")) {
+    		compareSpecs(args, jsonStrs, jsonLists);
+    	} else if (args.length == 3 && args[0].equals("--to-fsp")) {
+        	toFSP(args);
+    	} else if (args.length == 5 && args[0].equals("--compose")) {
     		System.out.println(ExtKripke.composeSpecs(args));
     	} else {
-    	  	
-        	if (args.length == 4 && args[0].equals("--prop")) {
-        		compareSpecToProperty(args, jsonStrs, jsonLists);
-        	}
-        	else if (args.length == 6 && args[0].equals("--env")) {
-        		compareSpecToEnvironment(args, jsonStrs, jsonLists);
-        	}
-        	else if (args.length == 6 && args[0].equals("--cmp")) {
-        		compareSpecs(args, jsonStrs, jsonLists);
-        	}
-        	else {
-        		System.out.println(USAGE); 
-        		return;
-        	}
-        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
+    		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
-  
+    	System.out.println(Utils.asJson(jsonStrs, jsonLists));	
+
+    }
+    
+    private static void toFSP(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
+    	
+    	// initialize and run TLC
+    	TLC tlc = new TLC("tlc");
+    	TLC.runTLC(tla, cfg, tlc);
+    	
+    	// error checking
+    	if (tlc.getKripke() == null) {
+    		System.err.println("The spec is malformed.");
+    		return;
+    	}
+    	System.out.println(tlc.getKripke().toFSP());
     }
    
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
