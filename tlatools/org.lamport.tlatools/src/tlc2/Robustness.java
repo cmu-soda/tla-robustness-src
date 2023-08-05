@@ -47,129 +47,9 @@ public class Robustness {
 	private static final String MISSING_BOTH_TYPEOKS = "missing_both_typeoks";
 	private static final String TYPE_OK = "TypeOK";
 	private static final String ALL = "All";
-	private static final String USAGE = "usage:\n"
-			+ "tlc-robustness —compose <spec1> <cfg1> <spec2> <cfg2>\n"
-			+ "tlc-robustness <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\n"
-			+ "flag=--prop|--env|--cmp";
-	
-	
-	/*
-	 * We compute whether \eta(spec1,P) \subseteq \eta(spec2,P)
-	 */
-    public static void calc(String[] args) {
-    	Map<String,String> jsonStrs = new HashMap<>();
-    	Map<String,List<String>> jsonLists = new HashMap<>();
-    	
-    	// robustness functionality
-    	// TODO add functionality for compareSpecToEnvironment
-    	if (args.length == 4 && args[0].equals("--prop")) {
-    		compareSpecToProperty(args, jsonStrs, jsonLists);
-        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
-    	}
-    	else if (args.length == 6 && args[0].equals("--env")) {
-    		compareSpecToEnvironment(args, jsonStrs, jsonLists);
-        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
-    	}
-    	else if (args.length == 6 && args[0].equals("--cmp")) {
-    		compareSpecs(args, jsonStrs, jsonLists);
-        	System.out.println(Utils.asJson(jsonStrs, jsonLists));
-    	}
-    	
-    	// convert a TLA+ spec to FSP
-    	else if (args.length == 3 && args[0].equals("--to-fsp")) {
-    		toFSP(args);
-    	}
-    	
-    	// compose two TLA+ specs
-    	else if (args.length == 5 && args[0].equals("--compose")) {
-    		System.out.println(composeSpecs(args));
-    	}
-    	
-    	// invalid args, display usage
-    	else {
-    		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
-    	}
-    	
-    	//propertyVariables(args);
-    	//printActions(args);
-    }
     
-    private static void printActions(String[] args) {
-    	final String tla = args[0];
-    	final String cfg = args[1];
-    	
-    	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC("tlc");
-    	tlc.initialize(tla, cfg);
-    	
-    	final FastTool ft = (FastTool) tlc.tool;
-    	Set<String> actNames = new HashSet<>();
-		for (final Action act : ft.getActions()) {
-			final String actName = act.getName().toString();
-			if (!actNames.contains(actName)) {
-				actNames.add(actName);
-				final OpDefNode opNode = act.getOpDef();
-				final String str = opNode.toTLA(true);
-				final String indented = str.replace("\n", "\n  ");
-				System.out.println(indented);
-				System.out.println();
-			}
-		}
-    }
-    
-    private static void propertyVariables(String[] args) {
-    	final String tla = args[0];
-    	final String cfg = args[1];
-    	
-    	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC("tlc");
-    	tlc.initialize(tla, cfg);
-    	
-    	final FastTool ft = (FastTool) tlc.tool;
-		final String[] varNames = ft.getVarNames();
-    	for (final Action inv : ft.getInvariants()) {
-    		final OpDefNode opNode = inv.getOpDef();
-    		Set<String> stateVarNames = new HashSet<>();
-    		opNode.stateVarVisit(stateVarNames);
-    		System.out.println("#sv names: " + stateVarNames.size());
-    		for (final String sv : stateVarNames) {
-    			System.out.println("  " + sv);
-    		}
-    	}
-    	
-    	System.out.println();
-    	System.out.println("Inv names:");
-    	for (String a : ft.getInvNames()) {
-    		System.out.println(a);
-    	}
-    }
-    
-    private static void toFSP(String[] args) {
-    	final String tla = args[1];
-    	final String cfg = args[2];
-    	
-    	// initialize and run TLC
-    	TLC tlc = new TLC("tlc");
-    	TLC.runTLC(tla, cfg, tlc);
-    	
-    	// error checking
-    	if (tlc.getKripke() == null) {
-    		System.err.println("The spec is malformed, or the file does not exist.");
-    		return;
-    	}
-    	System.out.println(tlc.getKripke().toFSP());
-    }
-    
-    private static String composeSpecs(String[] args) {
-		final String tla1 = args[1];
-		final String cfg1 = args[2];
-		final String tla2 = args[3];
-		final String cfg2 = args[4];
-		return ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2);
-    }
-   
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
-    private static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    public static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
     	final String outputLoc = args[1] + "/";
     	final String tla = args[2];
     	final String cfg = args[3];
@@ -192,7 +72,7 @@ public class Robustness {
     }
 
 	// M_err_rep: states that are in (M_err \cap E) but MAY leave E in one step
-    private static void compareSpecToEnvironment(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    public static void compareSpecToEnvironment(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
     	final String outputLoc = args[1] + "/";
     	final String tlaM = args[2];
     	final String cfgM = args[3];
@@ -227,7 +107,7 @@ public class Robustness {
     	jsonStrs.put(CLOSED_SYSTEM_IS_SAFE, tlcClosed.getKripke().isSafe() ? TRUE : FALSE);
     }
     
-    private static void compareSpecs(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    public static void compareSpecs(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
     	final String outputLoc = args[1] + "/";
     	final String tla1 = args[2];
     	final String cfg1 = args[3];
