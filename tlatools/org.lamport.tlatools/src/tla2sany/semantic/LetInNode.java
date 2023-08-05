@@ -2,9 +2,11 @@
 // Portions Copyright (c) 2003 Microsoft Corporation.  All rights reserved.
 package tla2sany.semantic;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -15,6 +17,7 @@ import tla2sany.st.TreeNode;
 import tla2sany.utilities.Strings;
 import tla2sany.utilities.Vector;
 import tla2sany.xml.SymbolContext;
+import tlc2.Utils;
 
 public class LetInNode extends ExprNode
 implements ExploreNode, LevelConstants {
@@ -59,6 +62,26 @@ implements ExploreNode, LevelConstants {
     this.insts = insts;
     this.body = bdy;
     this.context = ctext;
+  }
+  
+  @Override
+  public String toTLA(boolean pretty) {
+	  /*
+	  ArrayList<String> defs = new ArrayList<>();
+	  for (int i = 0; i < this.insts.length; ++i) {
+		  final String var = this.insts[i].toTLA(pretty);
+		  final String val = this.opDefs[i].toTLA(pretty);
+		  final String def = var + " == " + val;
+		  defs.add(def);
+	  }
+	  
+	  final String defsStr = String.join("\n  ", defs);
+	  */
+	  final String defsStr = Utils.toArrayList(this.opDefs)
+			  .stream()
+			  .map(d -> d.toTLA(false))
+			  .collect(Collectors.joining("\n    "));
+	  return "LET " + defsStr + " IN\n" + this.getBody().toTLA(pretty);
   }
 
   /**

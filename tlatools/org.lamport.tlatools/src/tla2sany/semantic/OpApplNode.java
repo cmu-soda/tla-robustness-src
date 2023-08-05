@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -32,6 +33,7 @@ import tla2sany.parser.SyntaxTreeNode;
 import tla2sany.st.TreeNode;
 import tla2sany.utilities.Strings;
 import tla2sany.xml.SymbolContext;
+import tlc2.Utils;
 import tlc2.tool.BuiltInOPs;
 import tlc2.value.ITupleValue;
 import tlc2.value.IValue;
@@ -241,6 +243,174 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  for (SemanticNode n : getChildren()) {
 			  n.stateVarVisit(vars);
 		  }
+	  }
+  }
+  
+  @Override
+  public String toTLA(boolean pretty) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  final String op = keyToOp(opKey);
+	  
+	  if (getChildren() == null || getChildren().length == 0) {
+		  return op;
+	  }
+	  else {
+		  // prime op
+		  if (isPrimeOp(opKey)) {
+			  Utils.assertTrue(getChildren().length == 1, "Prime op should only be applied to a single arg!");
+			  return getChildren()[0].toTLA(false) + opKey;
+		  }
+
+		  // UNCHANGED op
+		  if (isUnchangedOp(opKey)) {
+			  Utils.assertTrue(getChildren().length == 1, "UNCHANGED op should only be applied to a single arg!");
+			  return opKey + " " + getChildren()[0].toTLA(false);
+		  }
+		  
+		  // infix ops
+		  else if (isInfixOp(opKey)) {
+			  final String prefix = pretty ? op + " " : "";
+			  final String paddedOp = pretty ? "\n" + op + " " : " " + op + " ";
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.map(c -> c.toTLA(false))
+			  	.collect(Collectors.joining(paddedOp));
+			  return prefix + childrenToTLA;
+		  }
+		  
+		  // tuples
+		  else if (isTupleOp(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.map(c -> c.toTLA(false))
+			  	.collect(Collectors.joining(","));
+			  return "<<" + childrenToTLA + ">>";
+		  }
+		  
+		  // set enumeration op
+		  else if (isSetEnumerateOp(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.map(c -> c.toTLA(false))
+			  	.collect(Collectors.joining(","));
+			  return "{" + childrenToTLA + "}";
+		  }
+		  
+		  // create a sequence
+		  else if (isSeq(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+					  	.stream()
+					  	.map(c -> c.toTLA(false))
+					  	.collect(Collectors.joining(","));
+					  return "[" + childrenToTLA + "]";
+		  }
+		  
+		  // record constructor
+		  else if (isRcdConstructor(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+					  	.stream()
+					  	.map(r -> r.toTLA(false))
+					  	.map(r -> r.replace("=", "|->")) // pairs use = by default, but we want |->
+					  	.collect(Collectors.joining(","));
+					  return "[" + childrenToTLA + "]";
+		  }
+		  
+		  // function application op
+		  else if (isFcnApply(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "Function applications must have exactly 2 args!");
+			  final String func = getChildren()[0].toTLA(false);
+			  final String args = getChildren()[1].toTLA(false);
+			  return func + "[" + args + "]";
+		  }
+		  
+		  // EXCEPT op
+		  else if (isExcept(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "EXCEPT op must have exactly 2 args!");
+			  final String func = getChildren()[0].toTLA(false);
+			  final String exception = getChildren()[1].toTLA(false);
+			  return "[" + func + " EXCEPT!" + exception + "]";
+		  }
+		  
+		  // pair, I guess an equality?
+		  else if (isPair(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "Pair op must have exactly 2 args!");
+			  final String lhs = getChildren()[0].toTLA(false);
+			  final String rhs = getChildren()[1].toTLA(false);
+			  return lhs + " = " + rhs;
+		  }
+		  
+		  // either:
+		  // 1) this is an operator call or
+		  // 2) this is something unexpected, and we print it like an operator call
+		  else {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+					  	.stream()
+					  	.map(c -> c.toTLA(false))
+					  	.collect(Collectors.joining(","));
+			  return opKey + "(" + childrenToTLA + ")";
+		  }
+	  }
+  }
+  
+  private static boolean isPrimeOp(final String key) {
+	  return key.equals("'");
+  }
+  
+  private static boolean isUnchangedOp(final String key) {
+	  return key.equals("UNCHANGED");
+  }
+  
+  private static boolean isTupleOp(final String key) {
+	  return key.equals("$Tuple");
+  }
+  
+  private static boolean isSetEnumerateOp(final String key) {
+	  return key.equals("$SetEnumerate");
+  }
+  
+  private static boolean isSeq(final String key) {
+	  return key.equals("$Seq");
+  }
+  
+  private static boolean isRcdConstructor(final String key) {
+	  return key.equals("$RcdConstructor");
+  }
+  
+  private static boolean isFcnApply(final String key) {
+	  return key.equals("$FcnApply");
+  }
+  
+  private static boolean isExcept(final String key) {
+	  return key.equals("$Except");
+  }
+  
+  private static boolean isPair(final String key) {
+	  return key.equals("$Pair");
+  }
+  
+  private static boolean isInfixOp(final String key) {
+	  return key.equals("=")
+			  || key.equals(">")
+			  || key.equals("<")
+			  || key.equals(">=")
+			  || key.equals("<=")
+			  || key.equals("$ConjList")
+			  || key.equals("$DisjList")
+			  || key.equals("\\union")
+			  || key.equals("\\in");
+  }
+  
+  private static String keyToOp(final String key) {
+	  switch (key) {
+	  case "$ConjList":
+		  return "/\\";
+	  case "DisjList":
+		  return "\\/";
+	  case "\\union":
+		  return "\\cup";
+	  default:
+		  return key;
 	  }
   }
 

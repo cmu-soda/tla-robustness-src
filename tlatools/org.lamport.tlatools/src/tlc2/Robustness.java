@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import tla2sany.semantic.ExprNode;
 import tla2sany.semantic.OpDefNode;
 import tlc2.RobustDiffRep.SpecScope;
 import tlc2.tool.Action;
@@ -90,6 +91,30 @@ public class Robustness {
     	}
     	
     	//propertyVariables(args);
+    	//printActions(args);
+    }
+    
+    private static void printActions(String[] args) {
+    	final String tla = args[0];
+    	final String cfg = args[1];
+    	
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC("tlc");
+    	tlc.initialize(tla, cfg);
+    	
+    	final FastTool ft = (FastTool) tlc.tool;
+    	Set<String> actNames = new HashSet<>();
+		for (final Action act : ft.getActions()) {
+			final String actName = act.getName().toString();
+			if (!actNames.contains(actName)) {
+				actNames.add(actName);
+				final OpDefNode opNode = act.getOpDef();
+				final String str = opNode.toTLA(true);
+				final String indented = str.replace("\n", "\n  ");
+				System.out.println(indented);
+				System.out.println();
+			}
+		}
     }
     
     private static void propertyVariables(String[] args) {
@@ -102,7 +127,7 @@ public class Robustness {
     	
     	final FastTool ft = (FastTool) tlc.tool;
 		final String[] varNames = ft.getVarNames();
-    	for (Action inv : ft.getInvariants()) {
+    	for (final Action inv : ft.getInvariants()) {
     		final OpDefNode opNode = inv.getOpDef();
     		Set<String> stateVarNames = new HashSet<>();
     		opNode.stateVarVisit(stateVarNames);

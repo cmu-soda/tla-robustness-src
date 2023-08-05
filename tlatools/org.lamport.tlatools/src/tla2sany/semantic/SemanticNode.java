@@ -23,6 +23,7 @@ import tla2sany.parser.SyntaxTreeNode;
 import tla2sany.st.Location;
 import tla2sany.st.TreeNode;
 import tla2sany.xml.XMLExportable;
+import tlc2.Utils;
 import tlc2.value.IValue;
 import tlc2.value.Values;
 
@@ -74,6 +75,11 @@ public abstract class SemanticNode
 			  n.stateVarVisit(vars);
 		  }
 	  }
+  }
+  
+  public String toTLA(boolean pretty) {
+	  Utils.assertTrue(false, "Conversion from SemanticNode to TLA is not yet implemented for:\nclass: " + this.getClass() + "\nkind: " + this.getKind());
+	  return null;
   }
 
   /**

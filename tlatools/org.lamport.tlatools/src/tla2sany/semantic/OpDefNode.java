@@ -34,6 +34,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -46,6 +47,7 @@ import tla2sany.st.TreeNode;
 import tla2sany.utilities.Strings;
 import tla2sany.utilities.Vector;
 import tla2sany.xml.SymbolContext;
+import tlc2.Utils;
 import tlc2.tool.BuiltInOPs;
 import util.UniqueString;
 import util.WrongInvocationException;
@@ -582,6 +584,28 @@ public class OpDefNode extends OpDefOrDeclNode
     this.stepNode = step ;
     st.addSymbol(us, this);
    }
+  
+  
+  @Override
+  public String toTLA(boolean pretty) {
+	  // TODO this only works for user def's
+	  final String name = this.getName().toString();
+	  final String body = this.getBody().toTLA(pretty);
+	  final String defStr = pretty ? " ==\n" : " == ";
+	  
+	  if (this.params == null || this.params.length == 0) {
+		  return name + defStr + body;
+	  }
+	  else {
+		  final String params = Utils.toArrayList(this.params)
+				  .stream()
+				  .map(p -> p.getName().toString())
+				  .collect(Collectors.joining(","));
+		  return name + "(" + params + ")" + defStr + body;
+	  }
+  }
+  
+  
   /*************************************************************************
   * The methods that return or check properties of the node.               *
   *************************************************************************/

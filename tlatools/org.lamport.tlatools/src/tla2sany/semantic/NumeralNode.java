@@ -63,6 +63,11 @@ public class NumeralNode extends ExprNode {
       this.bigValue = new BigInteger( s, radix );
     }
   }
+  
+  @Override
+  public String toTLA(boolean pretty) {
+	  return this.toString();
+  }
 
   public final int val() { return this.value; }
 
