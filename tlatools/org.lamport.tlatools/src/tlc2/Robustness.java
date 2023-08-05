@@ -81,7 +81,7 @@ public class Robustness {
     	
     	// compose two TLA+ specs
     	else if (args.length == 5 && args[0].equals("--compose")) {
-    		System.out.println(ExtKripke.composeSpecs(args));
+    		System.out.println(composeSpecs(args));
     	}
     	
     	// invalid args, display usage
@@ -129,10 +129,18 @@ public class Robustness {
     	
     	// error checking
     	if (tlc.getKripke() == null) {
-    		System.err.println("The spec is malformed.");
+    		System.err.println("The spec is malformed, or the file does not exist.");
     		return;
     	}
     	System.out.println(tlc.getKripke().toFSP());
+    }
+    
+    private static String composeSpecs(String[] args) {
+		final String tla1 = args[1];
+		final String cfg1 = args[2];
+		final String tla2 = args[3];
+		final String cfg2 = args[4];
+		return ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2);
     }
    
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step

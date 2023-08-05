@@ -443,31 +443,71 @@ public class TLC {
 			}
 		}
 		
-		// only necessary if the consumer calls initialize() directly (i.e. not as a part of modelCheck())
+		// only perform initialization, don't model check
 		tool = new FastTool(mainFile, configFile, resolver, params);
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
     }
     
-    public static void modelCheck(final String tla, final String cfg, TLC tlc) {
-    	Utils.assertNull(TLC.currentInstance, "Cannot run multiple instances of TLC at once!");
-    	tlc.initialize(tla, cfg);
-    	Utils.assertNull(TLC.currentInstance, "Issue with initialization!");
+    public static void runTLC(final String tla, final String cfg, TLC tlc) {
+    	runTLC(tla, cfg, tlc, true);
+    }
+    
+    public static void runTLC(final String tla, final String cfg, TLC tlc, boolean supressTLCOutput) {
+    	if (TLC.currentInstance != null) {
+    		throw new RuntimeException("Cannot run multiple instances of TLC at once!");
+    	}
     	TLC.currentInstance = tlc;
-
+    	
+    	final String[] args = new String[] {"-deadlock", "-config", cfg, tla};
     	PrintStream origPrintStream = System.out;
-    	System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
+    	if (supressTLCOutput) {
+    		System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
+    	}
+
+        // Try to parse parameters.
+        if (!tlc.handleParameters(args)) {
+            // This is a tool failure. We must exit with a non-zero exit
+            // code or else we will mislead system tools and scripts into
+            // thinking everything went smoothly.
+            //
+            // FIXME: handleParameters should return an error object (or
+            // null), where the error object contains an error message.
+            // This makes handleParameters a function we can test.
+            System.exit(1);
+        }
+        
+        if (!tlc.checkEnvironment()) {
+            System.exit(1);
+        }
+
+		// Setup how spec files will be resolved in the filesystem.
+		if (MODEL_PART_OF_JAR) {
+			// There was not spec file given, it instead exists in the
+			// .jar file being executed. So we need to use a special file
+			// resolver to parse it.
+			tlc.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
+		} else {
+			// The user passed us a spec file directly. To ensure we can
+			// recover it during semantic parsing, we must include its
+			// parent directory as a library path in the file resolver.
+			//
+			// If the spec file has no parent directory, use the "standard"
+			// library paths provided by SimpleFilenameToStream.
+			final String dir = FileUtil.parseDirname(tlc.getMainFile());
+			if (!dir.isEmpty()) {
+				tlc.setResolver(new SimpleFilenameToStream(dir));
+			} else {
+				tlc.setResolver(new SimpleFilenameToStream());
+			}
+		}
 		
 		// Execute TLC.
         final int errorCode = tlc.process();
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
-    }
-    
-    public static void runTLC(final String tla, final String cfg, TLC tlc) {
-    	modelCheck(tla, cfg, tlc);
     }
     
     public boolean hasInvariant(final String inv) {
