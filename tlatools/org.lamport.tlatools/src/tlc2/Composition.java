@@ -34,17 +34,16 @@ public class Composition {
 		return ExtKripke.composeSpecs(tla1, cfg1, tla2, cfg2);
     }
     
-    
-    public static void decompose(String[] args) {
-    }
-    
-    public static void printActions(String[] args) {
-    	final String tla = args[0];
-    	final String cfg = args[1];
+
+    public static void decomposeWith(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
     	
     	// initialize TLC, DO NOT run it though
     	TLC tlc = new TLC("tlc");
     	tlc.initialize(tla, cfg);
+    	
+    	final Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
     	
     	final FastTool ft = (FastTool) tlc.tool;
     	Set<String> actNames = new HashSet<>();
@@ -53,38 +52,46 @@ public class Composition {
 			if (!actNames.contains(actName)) {
 				actNames.add(actName);
 				final OpDefNode opNode = act.getOpDef();
-				final String str = opNode.toTLA(true);
-				final String indented = str.replace("\n", "\n  ");
-				System.out.println(indented);
-				System.out.println();
+				
+				opNode.removeConjunctsWithoutStateVars(propertyVars);
+				
+				if (!opNode.hasOnlyUnchangedConjuncts()) {
+					final String str = opNode.toTLA(true);
+					final String indented = str.replace("\n", "\n  ");
+					System.out.println(indented);
+					System.out.println();
+				}
 			}
 		}
     }
     
-    public static void propertyVariables(String[] args) {
-    	final String tla = args[0];
-    	final String cfg = args[1];
+    public static void decomposeWithout(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
     	
     	// initialize TLC, DO NOT run it though
     	TLC tlc = new TLC("tlc");
     	tlc.initialize(tla, cfg);
     	
-    	final FastTool ft = (FastTool) tlc.tool;
-		final String[] varNames = ft.getVarNames();
-    	for (final Action inv : ft.getInvariants()) {
-    		final OpDefNode opNode = inv.getOpDef();
-    		Set<String> stateVarNames = new HashSet<>();
-    		opNode.stateVarVisit(stateVarNames);
-    		System.out.println("#sv names: " + stateVarNames.size());
-    		for (final String sv : stateVarNames) {
-    			System.out.println("  " + sv);
-    		}
-    	}
+    	final Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
     	
-    	System.out.println();
-    	System.out.println("Inv names:");
-    	for (String a : ft.getInvNames()) {
-    		System.out.println(a);
-    	}
+    	final FastTool ft = (FastTool) tlc.tool;
+    	Set<String> actNames = new HashSet<>();
+		for (final Action act : ft.getActions()) {
+			final String actName = act.getName().toString();
+			if (!actNames.contains(actName)) {
+				actNames.add(actName);
+				final OpDefNode opNode = act.getOpDef();
+				
+				opNode.removeConjunctsWithStateVars(propertyVars);
+				
+				if (!opNode.hasOnlyUnchangedConjuncts()) {
+					final String str = opNode.toTLA(true);
+					final String indented = str.replace("\n", "\n  ");
+					System.out.println(indented);
+					System.out.println();
+				}
+			}
+		}
     }
 }

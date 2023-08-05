@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
@@ -65,23 +66,45 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
-  public String toTLA(boolean pretty) {
-	  /*
-	  ArrayList<String> defs = new ArrayList<>();
-	  for (int i = 0; i < this.insts.length; ++i) {
-		  final String var = this.insts[i].toTLA(pretty);
-		  final String val = this.opDefs[i].toTLA(pretty);
-		  final String def = var + " == " + val;
-		  defs.add(def);
-	  }
+  public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  this.opDefs = Utils.toArrayList(this.opDefs)
+	  	.stream()
+	  	.filter(c -> !c.containsStateVars(vars))
+	  	.toArray(SymbolNode[]::new);
 	  
-	  final String defsStr = String.join("\n  ", defs);
-	  */
-	  final String defsStr = Utils.toArrayList(this.opDefs)
-			  .stream()
-			  .map(d -> d.toTLA(false))
-			  .collect(Collectors.joining("\n    "));
-	  return "LET " + defsStr + " IN\n" + this.getBody().toTLA(pretty);
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithStateVars(vars);
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeConjunctsWithoutStateVars(final Set<String> vars) {
+	  this.opDefs = Utils.toArrayList(this.opDefs)
+	  	.stream()
+	  	.filter(c -> c.containsStateVars(vars))
+	  	.toArray(SymbolNode[]::new);
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithoutStateVars(vars);
+		  }
+	  }
+  }
+  
+  @Override
+  public String toTLA(boolean pretty) {
+	  if (this.opDefs.length == 0) {
+		  return this.getBody().toTLA(pretty);
+	  }
+	  else {
+		  final String defsStr = Utils.toArrayList(this.opDefs)
+				  .stream()
+				  .map(d -> d.toTLA(false))
+				  .collect(Collectors.joining("\n    "));
+		  return "LET " + defsStr + " IN\n" + this.getBody().toTLA(pretty);
+	  }
   }
 
   /**

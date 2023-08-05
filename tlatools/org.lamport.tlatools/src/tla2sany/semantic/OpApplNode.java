@@ -247,6 +247,103 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  
+		  if (opKey.equals("$ConjList")) {
+			  this.operands = Utils.toArrayList(this.operands)
+			  	.stream()
+			  	.filter(c -> !c.containsStateVars(vars))
+			  	.toArray(ExprOrOpArgNode[]::new);
+		  }
+		  
+		  // notice we only remove the top level conjuncts, i.e. we don't recurse once we remove
+		  else {
+			  for (SemanticNode n : getChildren()) {
+				  n.removeConjunctsWithStateVars(vars);
+			  }
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeConjunctsWithoutStateVars(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  
+		  if (opKey.equals("$ConjList")) {
+			  this.operands = Utils.toArrayList(this.operands)
+			  	.stream()
+			  	.filter(c -> c.containsStateVars(vars))
+			  	.toArray(ExprOrOpArgNode[]::new);
+		  }
+		  
+		  // notice we only remove the top level conjuncts, i.e. we don't recurse once we remove
+		  else {
+			  for (SemanticNode n : getChildren()) {
+				  n.removeConjunctsWithoutStateVars(vars);
+			  }
+		  }
+	  }
+  }
+  
+  @Override
+  public boolean containsStateVars(final Set<String> vars) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (getChildren() == null || getChildren().length == 0) {
+		  if (vars.contains(opKey)) {
+			  return true;
+		  }
+	  }
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsStateVars(vars));
+  }
+  
+  @Override
+  public boolean hasUnchangedNode() {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (isUnchangedOp(opKey)) {
+		  return true;
+	  }
+
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasUnchangedNode());
+  }
+
+  @Override
+  public boolean hasOnlyUnchangedConjuncts() {
+	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  if (opKey.equals("$ConjList")) {
+			  return Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.allMatch(c -> c.hasUnchangedNode());
+		  }
+	  }
+	  
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
+  }
+  
+  @Override
   public String toTLA(boolean pretty) {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();

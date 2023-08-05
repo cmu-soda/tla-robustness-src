@@ -77,6 +77,49 @@ public abstract class SemanticNode
 	  }
   }
   
+  public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithStateVars(vars);
+		  }
+	  }
+  }
+  
+  public void removeConjunctsWithoutStateVars(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithoutStateVars(vars);
+		  }
+	  }
+  }
+  
+  public boolean containsStateVars(final Set<String> vars) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsStateVars(vars));
+  }
+  
+  public boolean hasUnchangedNode() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasUnchangedNode());
+  }
+  
+  public boolean hasOnlyUnchangedConjuncts() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
+  }
+  
   public String toTLA(boolean pretty) {
 	  Utils.assertTrue(false, "Conversion from SemanticNode to TLA is not yet implemented for:\nclass: " + this.getClass() + "\nkind: " + this.getKind());
 	  return null;

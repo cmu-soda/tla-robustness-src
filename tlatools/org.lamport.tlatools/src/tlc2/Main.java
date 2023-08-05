@@ -46,13 +46,18 @@ public class Main {
     		System.out.println(Composition.composeSpecs(args));
     	}
     	
+    	// decompose a TLA+ spec into two, WIP
+    	else if (args.length == 3 && args[0].equals("--decomp")) {
+        	System.out.println("A");
+        	Composition.decomposeWith(args);
+        	System.out.println("");
+        	System.out.println("B");
+        	Composition.decomposeWithout(args);
+    	}
+    	
     	// invalid args, display usage
     	else {
     		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
     	}
-    	
-    	//propertyVariables(args);
-    	//printActions(args);
-    	//decompose(args);
     }
 }
