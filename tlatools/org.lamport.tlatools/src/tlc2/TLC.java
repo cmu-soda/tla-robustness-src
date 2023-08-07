@@ -17,10 +17,12 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -311,91 +313,57 @@ public class TLC {
 	public ExtKripke getKripke() {
 		return this.kripke;
 	}
+    
+    public void initialize(final String tla, final String cfg) {
+    	Utils.assertNull(TLC.currentInstance, "Cannot run multiple instances of TLC at once!");
+    	TLC.currentInstance = this;
+    	
+    	final String[] args = new String[] {"-deadlock", "-config", cfg, tla};
+    	PrintStream origPrintStream = System.out;
+    	System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
 
-    /*
-     * This TLA checker (TLC) provides the following functionalities:
-     *  1. Simulation of TLA+ specs:
-     *  				java tlc2.TLC -simulate spec[.tla]
-     *  2. Model checking of TLA+ specs:
-     *  				java tlc2.TLC [-modelcheck] spec[.tla]
-     *
-     * The command line also provides the following options observed for functionalities 1. & 2.:
-     *  o -config file: provide the config file.
-     *		Defaults to spec.cfg if not provided
-     *  o -deadlock: do not check for deadlock.
-     *		Defaults to checking deadlock if not specified
-     *  o -depth num: specify the depth of random simulation 
-     *		Defaults to 100 if not specified
-     *  o -seed num: provide the seed for random simulation
-     *		Defaults to a random seed if not specified
-     *  o -aril num: Adjust the seed for random simulation
-     *		Defaults to 0 if not specified
-     *  o -recover path: recover from the checkpoint at path
-     *		Defaults to scratch run if not specified
-     *  o -metadir path: store metadata in the directory at path
-     *		Defaults to specdir/states if not specified
-	 *  o -userFile file: A full qualified/absolute path to a file to log user
-	 *					output (Print/PrintT/...) to
-     *  o -workers num: the number of TLC worker threads
-     *		Defaults to 1
-     *  o -dfid num: use depth-first iterative deepening with initial depth num
-     *  o -cleanup: clean up the states directory
-     *  o -dumpTrace format file: dump all counter-examples into file in the given format.
-     *  o -dump [dot] file: dump all the states into file. If "dot" as sub-parameter
-     *					is given, the output will be in dot notation.
-     *  o -postCondition mod!op: Evaluate the operator op in module mod after state-space exploration.
-     *  o -difftrace: when printing trace, show only
-     *					the differences between successive states
-     *		Defaults to printing full state descriptions if not specified
-     *					(Added by Rajeev Joshi)
-     *  o -terse: do not expand values in Print statement
-     *		Defaults to expand value if not specified
-     *  o -coverage minutes: collect coverage information on the spec,
-     *					print out the information every minutes.
-     *		Defaults to no coverage if not specified
-     *  o -continue: continue running even when invariant is violated
-     *		Defaults to stop at the first violation if not specified
-     *  o -lncheck: Check liveness properties at different times
-     *					of model checking.
-     *		Defaults to false increasing the overall model checking time.
-     *  o -nowarning: disable all the warnings
-     *		Defaults to report warnings if not specified
-     *  o -fp num: use the num'th irreducible polynomial from the list
-     *					stored in the class FP64.
-     *  o -view: apply VIEW (if provided) when printing out states.
-     *  o -gzip: control if gzip is applied to value input/output stream.
-     *		Defaults to off if not specified
-     *  o -debug: debbuging information (non-production use)
-     *  o -debugger: Activate TLC debugger
-     *  o -tool: tool mode (put output codes on console)
-     *  o -generateSpecTE: will generate SpecTE assets if error-states are
-     *  				encountered during model checking; this will change
-     *  				to tool mode regardless of whether '-tool' was
-     *  				explicitly specified; add on 'nomonolith' to not
-     *  				embed the dependencies in the SpecTE
-     *  o -checkpoint num: interval for check pointing (in minutes)
-     *		Defaults to 30
-     *  o -fpmem num: a value between 0 and 1, exclusive, representing the ratio
-     *  				of total system memory used to store the fingerprints of
-     *  				found states.
-     *  	Defaults to 1/4 physical memory.  (Added 6 Apr 2010 by Yuan Yu.)
-     *  o -fpbits num: the number of msb used by MultiFPSet to create nested FPSets.
-     *  	Defaults to 1
-     *  o -maxSetSize num: the size of the largest set TLC will enumerate.
-     *		Defaults to 1000000
-     *   
-     */
-    public static void main(String[] args) throws Exception
-    {
-    	try {
-    		Robustness.calc(args);
-    	}
-    	catch (Exception e) {
-    		e.printStackTrace();
-    	}
-    	finally {
-    		System.exit(0);
-    	}
+        // Try to parse parameters.
+        if (!this.handleParameters(args)) {
+            // This is a tool failure. We must exit with a non-zero exit
+            // code or else we will mislead system tools and scripts into
+            // thinking everything went smoothly.
+            //
+            // FIXME: handleParameters should return an error object (or
+            // null), where the error object contains an error message.
+            // This makes handleParameters a function we can test.
+            System.exit(1);
+        }
+        
+        if (!this.checkEnvironment()) {
+            System.exit(1);
+        }
+
+		// Setup how spec files will be resolved in the filesystem.
+		if (MODEL_PART_OF_JAR) {
+			// There was not spec file given, it instead exists in the
+			// .jar file being executed. So we need to use a special file
+			// resolver to parse it.
+			this.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
+		} else {
+			// The user passed us a spec file directly. To ensure we can
+			// recover it during semantic parsing, we must include its
+			// parent directory as a library path in the file resolver.
+			//
+			// If the spec file has no parent directory, use the "standard"
+			// library paths provided by SimpleFilenameToStream.
+			final String dir = FileUtil.parseDirname(this.getMainFile());
+			if (!dir.isEmpty()) {
+				this.setResolver(new SimpleFilenameToStream(dir));
+			} else {
+				this.setResolver(new SimpleFilenameToStream());
+			}
+		}
+		
+		// only perform initialization, don't model check
+		tool = new FastTool(mainFile, configFile, resolver, params);
+        
+        System.setOut(origPrintStream);
+        TLC.currentInstance = null;
     }
     
     public static void runTLC(final String tla, final String cfg, TLC tlc) {
@@ -456,6 +424,15 @@ public class TLC {
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
+    }
+    
+    public Set<String> stateVariablesUsedInInvariants() {
+    	final FastTool ft = (FastTool) this.tool;
+		Set<String> stateVarNames = new HashSet<>();
+		for (final Action inv : ft.getInvariants()) {
+			inv.getOpDef().stateVarVisit(stateVarNames);
+		}
+		return stateVarNames;
     }
     
     public boolean hasInvariant(final String inv) {

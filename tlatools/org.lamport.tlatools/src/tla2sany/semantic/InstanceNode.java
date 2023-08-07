@@ -2,6 +2,7 @@
 // Portions Copyright (c) 2003 Microsoft Corporation.  All rights reserved.
 package tla2sany.semantic;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -113,6 +114,11 @@ public class InstanceNode extends LevelNode {
     this.params = (params != null ? params : new FormalParamNode[0]);
     this.module = module;
     this.substs = (substs != null ? substs : new Subst[0]);
+  }
+  
+  @Override
+  public String toTLA(boolean pretty) {
+	  return this.getName().toString();
   }
 
   public boolean isLocal() { return local ; }

@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -22,6 +23,7 @@ import tla2sany.parser.SyntaxTreeNode;
 import tla2sany.st.Location;
 import tla2sany.st.TreeNode;
 import tla2sany.xml.XMLExportable;
+import tlc2.Utils;
 import tlc2.value.IValue;
 import tlc2.value.Values;
 
@@ -65,6 +67,112 @@ public abstract class SemanticNode
       case TemporalLevel: return level + " (Temporal)";
       default:            return level + " (Illegal)";
     }
+  }
+  
+  public void stateVarVisit(Set<String> vars) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.stateVarVisit(vars);
+		  }
+	  }
+  }
+  
+  public void removeUnusedLetDefs() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeUnusedLetDefs();
+		  }
+	  }
+  }
+  
+  public void removeChildNodes(final Set<? extends SemanticNode> toRemove) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeChildNodes(toRemove);
+		  }
+	  }
+  }
+  
+  public void removeChildrenWithName(final Set<String> toRemove) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeChildrenWithName(toRemove);
+		  }
+	  }
+  }
+  
+  public void removeConjunctsWithEmptyUnchangedOp() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithEmptyUnchangedOp();
+		  }
+	  }
+  }
+  
+  public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithStateVars(vars);
+		  }
+	  }
+  }
+  
+  public void removeStateVarsFromUnchangedTuples(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeStateVarsFromUnchangedTuples(vars);
+		  }
+	  }
+  }
+  
+  public boolean containsStateVars(final Set<String> vars) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsStateVars(vars));
+  }
+  
+  public boolean containsNodeWithName(final String name) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeWithName(name));
+  }
+  
+  public boolean hasUnchangedNode() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasUnchangedNode());
+  }
+  
+  public boolean hasOnlyUnchangedConjuncts() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
+  }
+  
+  public boolean varIsUnchanged(final String var) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.varIsUnchanged(var));
+  }
+  
+  protected String toTLA(boolean pretty) {
+	  Utils.assertTrue(false, "Conversion from SemanticNode to TLA is not yet implemented for:\nclass: " + this.getClass() + "\nkind: " + this.getKind());
+	  return null;
   }
 
   /**

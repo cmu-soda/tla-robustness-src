@@ -2,9 +2,12 @@
 // Portions Copyright (c) 2003 Microsoft Corporation.  All rights reserved.
 package tla2sany.semantic;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -15,6 +18,7 @@ import tla2sany.st.TreeNode;
 import tla2sany.utilities.Strings;
 import tla2sany.utilities.Vector;
 import tla2sany.xml.SymbolContext;
+import tlc2.Utils;
 
 public class LetInNode extends ExprNode
 implements ExploreNode, LevelConstants {
@@ -59,6 +63,54 @@ implements ExploreNode, LevelConstants {
     this.insts = insts;
     this.body = bdy;
     this.context = ctext;
+  }
+  
+  @Override
+  public void removeUnusedLetDefs() {
+	  this.opDefs = Utils.toArrayList(this.opDefs)
+			  	.stream()
+			  	.filter(d -> this.body.containsNodeWithName(d.getName().toString()))
+			  	.toArray(SymbolNode[]::new);
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeUnusedLetDefs();
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  final Set<String> removedDefs = Utils.toArrayList(this.opDefs)
+		.stream()
+		.filter(d -> d.containsStateVars(vars))
+		.map(d -> d.getName().toString())
+		.collect(Collectors.toSet());
+	  this.opDefs = Utils.toArrayList(this.opDefs)
+	  	.stream()
+	  	.filter(c -> !c.containsStateVars(vars))
+	  	.toArray(SymbolNode[]::new);
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithStateVars(removedDefs);
+			  n.removeConjunctsWithStateVars(vars);
+		  }
+	  }
+  }
+  
+  @Override
+  protected String toTLA(boolean pretty) {
+	  if (this.opDefs.length == 0) {
+		  return this.getBody().toTLA(pretty);
+	  }
+	  else {
+		  final String defsStr = Utils.toArrayList(this.opDefs)
+				  .stream()
+				  .map(d -> d.toTLA(false))
+				  .collect(Collectors.joining("\n    "));
+		  return "LET " + defsStr + " IN\n" + this.getBody().toTLA(pretty);
+	  }
   }
 
   /**

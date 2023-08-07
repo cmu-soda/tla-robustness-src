@@ -20,7 +20,9 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -31,6 +33,7 @@ import tla2sany.parser.SyntaxTreeNode;
 import tla2sany.st.TreeNode;
 import tla2sany.utilities.Strings;
 import tla2sany.xml.SymbolContext;
+import tlc2.Utils;
 import tlc2.tool.BuiltInOPs;
 import tlc2.value.ITupleValue;
 import tlc2.value.IValue;
@@ -225,6 +228,523 @@ public class OpApplNode extends ExprNode implements ExploreNode {
     this.ranges = rs;
     this.operator = Context.getGlobalContext().getSymbol(us);
      // operator.match( this, mn );
+  }
+  
+  @Override
+  public void stateVarVisit(Set<String> vars) {
+	  final SymbolNode op = this.getOperator();
+	  if (op.getKind() == VariableDeclKind) {
+		  //final OpDeclNode varNode = (OpDeclNode) op;
+		  final String name = op.getName().toString();
+		  vars.add(name);
+	  }
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.stateVarVisit(vars);
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeChildNodes(final Set<? extends SemanticNode> toRemove) {
+	  if (getChildren() != null) {
+		  this.operands = Utils.toArrayList(this.operands)
+				  .stream()
+				  .filter(d -> !toRemove.contains(d))
+				  .toArray(ExprOrOpArgNode[]::new);
+		  
+		  for (SemanticNode n : getChildren()) {
+			  n.removeChildNodes(toRemove);
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeChildrenWithName(final Set<String> toRemove) {
+	  if (getChildren() != null) {
+		  this.operands = Utils.toArrayList(this.operands)
+				  .stream()
+				  .filter(d -> {
+					  if (d instanceof OpApplNode) {
+						  final OpApplNode child = (OpApplNode) d;
+						  final String name = child.getOperator().getName().toString();
+						  return !toRemove.contains(name);
+					  }
+					  return true;
+				  })
+				  .toArray(ExprOrOpArgNode[]::new);
+		  
+		  for (SemanticNode n : getChildren()) {
+			  n.removeChildrenWithName(toRemove);
+		  }
+	  }
+  }
+  
+  public void removeConjunctsWithEmptyUnchangedOp() {
+	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  
+		  if (opKey.equals("$ConjList")) {
+			  this.operands = Utils.toArrayList(this.operands)
+				.stream()
+				.filter(c -> {
+					if (c instanceof OpApplNode) {
+						final OpApplNode cNode = (OpApplNode) c;
+						final String cKey = cNode.getOperator().getName().toString();
+						if (isUnchangedOp(cKey) && cNode.operands.length == 1) {
+							final ExprOrOpArgNode child = cNode.operands[0];
+							Utils.assertTrue(child instanceof OpApplNode, "UNCHANGED should be applied to an OpApplNode!");
+							final OpApplNode childNode = (OpApplNode) child;
+							final String childKey = childNode.getOperator().getName().toString();
+							if (childKey.equals("$Tuple")) {
+								if (childNode.operands.length == 0) {
+									return false;
+								}
+							}
+						}
+					}
+					return true;
+				})
+				.toArray(ExprOrOpArgNode[]::new);
+		  }
+		  
+		  // notice we only remove the top level conjuncts, i.e. we don't recurse once we remove
+		  else {
+			  for (SemanticNode n : getChildren()) {
+				  n.removeConjunctsWithEmptyUnchangedOp();
+			  }
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  
+		  if (opKey.equals("$ConjList")) {
+			  this.operands = Utils.toArrayList(this.operands)
+			  	.stream()
+			  	.filter(c -> !c.containsStateVars(vars))
+			  	.toArray(ExprOrOpArgNode[]::new);
+		  }
+		  
+		  // notice we only remove the top level conjuncts, i.e. we don't recurse once we remove
+		  else {
+			  for (SemanticNode n : getChildren()) {
+				  n.removeConjunctsWithStateVars(vars);
+			  }
+		  }
+	  }
+  }
+  
+  @Override
+  public void removeStateVarsFromUnchangedTuples(final Set<String> vars) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (isUnchangedOp(opKey)) {
+		  Utils.assertTrue(this.operands.length == 1, "UNCHANGED op should only be applied to a single arg!");
+		  final ExprOrOpArgNode child = this.operands[0];
+		  Utils.assertTrue(child instanceof OpApplNode, "UNCHANGED should be applied to an OpApplNode!");
+		  final OpApplNode childNode = (OpApplNode) child;
+		  final String childKey = childNode.getOperator().getName().toString();
+		  if (childKey.equals("$Tuple")) {
+			  childNode.operands = Utils.toArrayList(childNode.operands)
+					  .stream()
+					  .filter(e -> !e.containsStateVars(vars))
+					  .toArray(ExprOrOpArgNode[]::new);
+		  }
+	  }
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeStateVarsFromUnchangedTuples(vars);
+		  }
+	  }
+  }
+  
+  @Override
+  public boolean containsStateVars(final Set<String> vars) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (getChildren() == null || getChildren().length == 0) {
+		  if (vars.contains(opKey)) {
+			  return true;
+		  }
+	  }
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsStateVars(vars));
+  }
+  
+  @Override
+  public boolean containsNodeWithName(final String name) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (getChildren() == null || getChildren().length == 0) {
+		  if (opKey.equals(name)) {
+			  return true;
+		  }
+	  }
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeWithName(name));
+  }
+  
+  @Override
+  public boolean hasUnchangedNode() {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (isUnchangedOp(opKey)) {
+		  return true;
+	  }
+
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasUnchangedNode());
+  }
+
+  @Override
+  public boolean hasOnlyUnchangedConjuncts() {
+	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  if (opKey.equals("$ConjList")) {
+			  return Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.allMatch(c -> c.hasUnchangedNode());
+		  }
+	  }
+	  
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
+  }
+  
+  @Override
+  public boolean varIsUnchanged(final String var) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (isUnchangedOp(opKey)) {
+		  final boolean varIsUnchanged = Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> c.containsNodeWithName(var));
+		  if (varIsUnchanged) {
+			  return true;
+		  }
+	  }
+	  
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.varIsUnchanged(var));
+  }
+  
+  @Override
+  protected String toTLA(boolean pretty) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  final String op = keyToOp(opKey);
+	  
+	  if (getChildren() == null || (getChildren().length == 0 && !op.contains("$"))) {
+		  return op;
+	  }
+	  else {
+		  // infix ops
+		  if (isInfixOp(opKey)) {
+			  final String prefix = pretty ? op + " " : "";
+			  final String paddedOp = pretty ? "\n" + op + " " : " " + op + " ";
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.map(c -> c.toTLA(false))
+			  	.collect(Collectors.joining(paddedOp));
+			  return prefix + childrenToTLA;
+		  }
+		  
+		  // bounded quants
+		  else if (isBoundedQuant(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "Bounded quants should have two args!");
+			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
+			  final FormalParamNode[] params = paramsPerDomain[0];
+			  
+			  final String domain = getChildren()[0].toTLA(false);
+			  final String qvars = Utils.toArrayList(params)
+					  .stream()
+					  .map(p -> p.getName().toString())
+					  .collect(Collectors.joining(","));
+			  final String body = getChildren()[1].toTLA(pretty);
+			  final String quantMatrixSep = pretty ? " :\n" : " : ";
+			  return op + " " + qvars + " \\in " + domain + quantMatrixSep + body;
+		  }
+		  
+		  // prime op
+		  else if (isPrimeOp(opKey)) {
+			  Utils.assertTrue(getChildren().length == 1, "Prime op should only be applied to a single arg!");
+			  return getChildren()[0].toTLA(false) + opKey;
+		  }
+
+		  // UNCHANGED op
+		  else if (isUnchangedOp(opKey)) {
+			  Utils.assertTrue(getChildren().length == 1, "UNCHANGED op should only be applied to a single arg!");
+			  return opKey + " " + getChildren()[0].toTLA(false);
+		  }
+
+		  // logical NOT op
+		  else if (isNotOp(opKey)) {
+			  Utils.assertTrue(getChildren().length == 1, "~ op should only be applied to a single arg!");
+			  return op + "(" + getChildren()[0].toTLA(false) + ")";
+		  }
+		  
+		  // tuples
+		  else if (isTupleOp(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.map(c -> c.toTLA(false))
+			  	.collect(Collectors.joining(","));
+			  return "<<" + childrenToTLA + ">>";
+		  }
+		  
+		  // set enumeration op
+		  else if (isSetEnumerateOp(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+			  	.stream()
+			  	.map(c -> c.toTLA(false))
+			  	.collect(Collectors.joining(","));
+			  return "{" + childrenToTLA + "}";
+		  }
+		  
+		  // create a sequence
+		  else if (isSeq(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+					  	.stream()
+					  	.map(c -> c.toTLA(false))
+					  	.collect(Collectors.joining(","));
+					  return "[" + childrenToTLA + "]";
+		  }
+		  
+		  // record constructor
+		  else if (isRcdConstructor(opKey)) {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+					  	.stream()
+					  	.map(r -> r.toTLA(false))
+					  	.map(r -> r.replace("=", "|->")) // pairs use = by default, but we want |->
+					  	.collect(Collectors.joining(","));
+					  return "[" + childrenToTLA + "]";
+		  }
+		  
+		  // function application op
+		  else if (isFcnApply(opKey)) {
+			  switch (getChildren().length) {
+			  case 1:
+				  // state variable
+				  return getChildren()[0].toTLA(false);
+			  case 2:
+				  // function application
+				  final String func = getChildren()[0].toTLA(false);
+				  final String args = getChildren()[1].toTLA(false);
+				  return func + "[" + args + "]";
+			  default:
+				  Utils.assertTrue(false, "Function applications must have 1 or 2 args!");
+				  return null;
+			  }
+		  }
+		  
+		  // EXCEPT op
+		  else if (isExcept(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "EXCEPT op must have exactly 2 args!");
+			  final String func = getChildren()[0].toTLA(false);
+			  final String exception = getChildren()[1].toTLA(false);
+			  return "[" + func + " EXCEPT!" + exception + "]";
+		  }
+		  
+		  // pair, I guess an equality?
+		  else if (isPair(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "Pair op must have exactly 2 args!");
+			  final String lhs = getChildren()[0].toTLA(false).replace("\"", ""); // cheap hack for record keys
+			  final String rhs = getChildren()[1].toTLA(false);
+			  return lhs + " = " + rhs;
+		  }
+		  
+		  // function constructor, I'll assume a constant value for now
+		  else if (isFcnConstructor(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "We assume function constructors have exactly 2 args!");
+			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
+			  final FormalParamNode[] params = paramsPerDomain[0];
+			  
+			  final String domain = getChildren()[0].toTLA(false);
+			  final String qvars = Utils.toArrayList(params)
+					  .stream()
+					  .map(p -> p.getName().toString())
+					  .collect(Collectors.joining(","));
+			  final String val = getChildren()[1].toTLA(false);
+			  return "[" + qvars + " \\in " + domain + " |-> " + val + "]";
+		  }
+		  
+		  // set of functions
+		  else if (isSetOfFcns(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "We assume that function sets have exactly 2 args!");
+			  final String domain = getChildren()[0].toTLA(false);
+			  final String range = getChildren()[1].toTLA(false);
+			  return "[" + domain + " -> " + range + "]";
+		  }
+		  
+		  // set of records
+		  else if (isSetOfRcds(opKey)) {
+			  final String body = Utils.toArrayList(this.operands)
+					  .stream()
+					  .map(r -> r.toTLA(false))
+					  .map(r -> r.replace("=", ":"))
+					  .collect(Collectors.joining(","));
+			  return "[" + body + "]";
+		  }
+		  
+		  // inside of the [] temporal op
+		  else if (isSquareAct(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "SquareAct op should have exactly 2 args!");
+			  final String body = getChildren()[0].toTLA(false);
+			  final String stutVars = getChildren()[1].toTLA(false);
+			  return "[" + body + "]_" + stutVars;
+		  }
+		  
+		  // [] temporal op
+		  else if (isAlwaysTemporalOp(opKey)) {
+			  Utils.assertTrue(getChildren().length == 1, "[] op should have exactly 1 arg!");
+			  final String body = getChildren()[0].toTLA(false);
+			  return op + body;
+		  }
+		  
+		  // either:
+		  // 1) this is an operator call or
+		  // 2) this is something unexpected, and we print it like an operator call
+		  else {
+			  final String childrenToTLA = Utils.toArrayList(getChildren())
+					  	.stream()
+					  	.map(c -> c.toTLA(false))
+					  	.collect(Collectors.joining(","));
+			  return opKey + "(" + childrenToTLA + ")";
+		  }
+	  }
+  }
+  
+  private static boolean isPrimeOp(final String key) {
+	  return key.equals("'");
+  }
+  
+  private static boolean isUnchangedOp(final String key) {
+	  return key.equals("UNCHANGED");
+  }
+  
+  private static boolean isNotOp(final String key) {
+	  return key.equals("\\lnot");
+  }
+  
+  private static boolean isTupleOp(final String key) {
+	  return key.equals("$Tuple");
+  }
+  
+  private static boolean isSetEnumerateOp(final String key) {
+	  return key.equals("$SetEnumerate");
+  }
+  
+  private static boolean isSeq(final String key) {
+	  return key.equals("$Seq");
+  }
+  
+  private static boolean isRcdConstructor(final String key) {
+	  return key.equals("$RcdConstructor");
+  }
+  
+  private static boolean isFcnApply(final String key) {
+	  return key.equals("$FcnApply");
+  }
+  
+  private static boolean isExcept(final String key) {
+	  return key.equals("$Except");
+  }
+  
+  private static boolean isPair(final String key) {
+	  return key.equals("$Pair");
+  }
+  
+  private static boolean isFcnConstructor(final String key) {
+	  return key.equals("$FcnConstructor");
+  }
+  
+  private static boolean isSetOfFcns(final String key) {
+	  return key.equals("$SetOfFcns");
+  }
+  
+  private static boolean isSetOfRcds(final String key) {
+	  return key.equals("$SetOfRcds");
+  }
+  
+  private static boolean isSquareAct(final String key) {
+	  return key.equals("$SquareAct");
+  }
+  
+  private static boolean isAlwaysTemporalOp(final String key) {
+	  return key.equals("[]");
+  }
+  
+  private static boolean isBoundedQuant(final String key) {
+	  return key.equals("$BoundedExists")
+			  || key.equals("$BoundedForall");
+  }
+  
+  private static boolean isInfixOp(final String key) {
+	  return key.equals("=")
+			  || key.equals(">")
+			  || key.equals("<")
+			  || key.equals(">=")
+			  || key.equals("<=")
+			  || key.equals("$ConjList")
+			  || key.equals("$DisjList")
+			  || key.equals("\\union")
+			  || key.equals("\\in")
+			  || key.equals("\\land")
+			  || key.equals("\\lor");
+  }
+  
+  private static String keyToOp(final String key) {
+	  switch (key) {
+	  case "$ConjList":
+		  return "/\\";
+	  case "$DisjList":
+		  return "\\/";
+	  case "$BoundedExists":
+		  return "\\E";
+	  case "$BoundedForall":
+		  return "\\A";
+	  case "\\union":
+		  return "\\cup";
+	  case "\\land":
+		  return "/\\";
+	  case "\\lor":
+		  return "\\/";
+	  case "\\lnot":
+		  return "~";
+	  default:
+		  return key;
+	  }
   }
 
   /**
