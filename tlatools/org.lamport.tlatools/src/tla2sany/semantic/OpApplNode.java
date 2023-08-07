@@ -437,6 +437,27 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public boolean varIsUnchanged(final String var) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (isUnchangedOp(opKey)) {
+		  final boolean varIsUnchanged = Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> c.containsNodeWithName(var));
+		  if (varIsUnchanged) {
+			  return true;
+		  }
+	  }
+	  
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.varIsUnchanged(var));
+  }
+  
+  @Override
   protected String toTLA(boolean pretty) {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();

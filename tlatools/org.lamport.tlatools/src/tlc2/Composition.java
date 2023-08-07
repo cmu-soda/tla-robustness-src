@@ -44,32 +44,112 @@ public class Composition {
 
 
     public static void decompose(String[] args) {
-    	final String tla = args[1];
-    	final String cfg = args[2];
+    	String tla = args[1];
+    	String cfg = args[2];
     	
     	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC("tlc");
+    	TLC tlc = new TLC("init");
+    	tlc.initialize(tla, cfg);
+    	
+    	// get state vars to decompose with
+    	Set<String> allVars = stateVarsInSpec(tla, cfg);
+    	Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
+    	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+    	
+    	int iter = 1;
+    	while (propertyVars.size() > 0 && nonPropertyVars.size() > 0) {
+    		final String aSpec = "A" + iter;
+    		final String bSpec = "B" + iter;
+    		decompose(aSpec, propertyVars, tla, cfg, true);
+        	decompose(bSpec, nonPropertyVars, tla, cfg, false);
+        	
+        	allVars = stateVarsInSpec(bSpec, "no_invs.cfg");
+        	propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg");
+        	nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+        	tla = bSpec;
+        	cfg = "no_invs.cfg";
+        	++iter;
+    	}
+    }
+    
+    private static Set<String> stateVarsInSpec(final String tla, final String cfg) {
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC("sv_" + tla);
     	tlc.initialize(tla, cfg);
     	final FastTool ft = (FastTool) tlc.tool;
     	
-    	// get state vars to decompose with
-        final Set<String> allVars = Utils.toArrayList(ft.getVarNames())
+    	return Utils.toArrayList(ft.getVarNames())
         		.stream()
         		.collect(Collectors.toSet());
-    	final Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
-    	final Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
-    	
-    	decompose("A", allVars, propertyVars, tla, cfg, true);
-    	decompose("B", allVars, nonPropertyVars, tla, cfg, false);
     }
     
-    public static void decompose(final String specName, final Set<String> allVars, final Set<String> keepVars, final String tla, final String cfg, boolean includeInvs) {
-    	final Set<String> removeVars = Utils.setMinus(allVars, keepVars);
+    private static Set<String> actionsInSpec(final String tla, final String cfg) {
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC("act_" + tla);
+    	tlc.initialize(tla, cfg);
+    	final FastTool ft = (FastTool) tlc.tool;
     	
+    	return Utils.toArrayList(ft.getActions())
+        		.stream()
+        		.map(a -> a.getName().toString())
+        		.collect(Collectors.toSet());
+    }
+    
+    /**
+     * Calculates the vars from bSpec that /may/ be needed to uphold the guarantees of the interface
+     * provided in aSpec. We perform this calculation by consider all variables in bSpec that are not
+     * exclusively in UNCHANGED blocks in the mutual actions of aSpec and bSpec.
+     * @param aSpec
+     * @param bSpec
+     * @return
+     */
+    private static Set<String> calcPropertyVars(final String aSpec, final String aCfg, final String bSpec, final String bCfg) {
+    	final Set<String> aActions = actionsInSpec(aSpec, aCfg);
+    	final Set<String> bActions = actionsInSpec(bSpec, bCfg);
+    	final Set<String> ifaceActions = Utils.intersection(aActions, bActions);
+    	
+    	TLC tlc = new TLC("b_" + bSpec);
+    	tlc.initialize(bSpec, bCfg);
+    	final FastTool ft = (FastTool) tlc.tool;
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = tlc.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+    			.filter(d -> !d.isStandardModule())
+    			.collect(Collectors.toList());
+    	
+    	// find vars that are always unchanged in ifaceActions in bSpec
+    	final Set<String> bVars = stateVarsInSpec(bSpec, bCfg);
+    	final Set<String> unchangedBVars = bVars
+    			.stream()
+    			.filter(v -> {
+    				return moduleNodes
+    						.stream()
+    						.filter(n -> ifaceActions.contains(n.getName().toString())) // only consider actions in the iface
+    						.allMatch(n -> n.varIsUnchanged(v));
+    			})
+    			.collect(Collectors.toSet());
+    	
+    	// find the vars that may be changed in ifaceActions in bSpec
+    	final Set<String> varsThatMayChange = Utils.setMinus(bVars, unchangedBVars);
+    	return varsThatMayChange;
+    }
+    
+    private static void decompose(final String specName, final Set<String> keepVars, final String tla, final String cfg, boolean includeInvs) {
     	// initialize TLC, DO NOT run it though
     	TLC tlc = new TLC(specName);
     	tlc.initialize(tla, cfg);
     	final FastTool ft = (FastTool) tlc.tool;
+    	
+    	// calculate variables to remove from the spec
+    	final Set<String> allVars = Utils.toArrayList(ft.getVarNames())
+        		.stream()
+        		.collect(Collectors.toSet());
+    	final Set<String> removeVars = Utils.setMinus(allVars, keepVars);
+    	
+    	// get the actions and invariants in the spec
 		final Set<String> actionNames = Utils.toArrayList(ft.getActions())
 				.stream()
 				.map(a -> a.getName().toString())

@@ -161,6 +161,15 @@ public abstract class SemanticNode
 			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
   }
   
+  public boolean varIsUnchanged(final String var) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.varIsUnchanged(var));
+  }
+  
   protected String toTLA(boolean pretty) {
 	  Utils.assertTrue(false, "Conversion from SemanticNode to TLA is not yet implemented for:\nclass: " + this.getClass() + "\nkind: " + this.getKind());
 	  return null;

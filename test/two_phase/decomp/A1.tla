@@ -1,4 +1,4 @@
---------------------------- MODULE A ---------------------------
+--------------------------- MODULE A1 ---------------------------
 EXTENDS Naturals, Sequences, Integers
 
 VARIABLES rmState
