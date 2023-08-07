@@ -77,6 +77,38 @@ public abstract class SemanticNode
 	  }
   }
   
+  public void removeUnusedLetDefs() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeUnusedLetDefs();
+		  }
+	  }
+  }
+  
+  public void removeChildNodes(final Set<? extends SemanticNode> toRemove) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeChildNodes(toRemove);
+		  }
+	  }
+  }
+  
+  public void removeChildrenWithName(final Set<String> toRemove) {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeChildrenWithName(toRemove);
+		  }
+	  }
+  }
+  
+  public void removeConjunctsWithEmptyUnchangedOp() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithEmptyUnchangedOp();
+		  }
+	  }
+  }
+  
   public void removeConjunctsWithStateVars(final Set<String> vars) {
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
@@ -85,10 +117,10 @@ public abstract class SemanticNode
 	  }
   }
   
-  public void removeConjunctsWithoutStateVars(final Set<String> vars) {
+  public void removeStateVarsFromUnchangedTuples(final Set<String> vars) {
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
-			  n.removeConjunctsWithoutStateVars(vars);
+			  n.removeStateVarsFromUnchangedTuples(vars);
 		  }
 	  }
   }
@@ -100,6 +132,15 @@ public abstract class SemanticNode
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.containsStateVars(vars));
+  }
+  
+  public boolean containsNodeWithName(final String name) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeWithName(name));
   }
   
   public boolean hasUnchangedNode() {
@@ -120,7 +161,7 @@ public abstract class SemanticNode
 			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
   }
   
-  public String toTLA(boolean pretty) {
+  protected String toTLA(boolean pretty) {
 	  Utils.assertTrue(false, "Conversion from SemanticNode to TLA is not yet implemented for:\nclass: " + this.getClass() + "\nkind: " + this.getKind());
 	  return null;
   }

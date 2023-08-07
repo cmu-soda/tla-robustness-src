@@ -66,7 +66,26 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
+  public void removeUnusedLetDefs() {
+	  this.opDefs = Utils.toArrayList(this.opDefs)
+			  	.stream()
+			  	.filter(d -> this.body.containsNodeWithName(d.getName().toString()))
+			  	.toArray(SymbolNode[]::new);
+	  
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeUnusedLetDefs();
+		  }
+	  }
+  }
+  
+  @Override
   public void removeConjunctsWithStateVars(final Set<String> vars) {
+	  final Set<String> removedDefs = Utils.toArrayList(this.opDefs)
+		.stream()
+		.filter(d -> d.containsStateVars(vars))
+		.map(d -> d.getName().toString())
+		.collect(Collectors.toSet());
 	  this.opDefs = Utils.toArrayList(this.opDefs)
 	  	.stream()
 	  	.filter(c -> !c.containsStateVars(vars))
@@ -74,27 +93,14 @@ implements ExploreNode, LevelConstants {
 	  
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
+			  n.removeConjunctsWithStateVars(removedDefs);
 			  n.removeConjunctsWithStateVars(vars);
 		  }
 	  }
   }
   
   @Override
-  public void removeConjunctsWithoutStateVars(final Set<String> vars) {
-	  this.opDefs = Utils.toArrayList(this.opDefs)
-	  	.stream()
-	  	.filter(c -> c.containsStateVars(vars))
-	  	.toArray(SymbolNode[]::new);
-	  
-	  if (getChildren() != null) {
-		  for (SemanticNode n : getChildren()) {
-			  n.removeConjunctsWithoutStateVars(vars);
-		  }
-	  }
-  }
-  
-  @Override
-  public String toTLA(boolean pretty) {
+  protected String toTLA(boolean pretty) {
 	  if (this.opDefs.length == 0) {
 		  return this.getBody().toTLA(pretty);
 	  }

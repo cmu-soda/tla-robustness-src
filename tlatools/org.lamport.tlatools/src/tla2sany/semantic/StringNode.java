@@ -44,7 +44,7 @@ public class StringNode extends ExprNode implements ExploreNode {
   }
   
   @Override
-  public String toTLA(boolean pretty) {
+  protected String toTLA(boolean pretty) {
 	  return "\"" + this.value.toString() + "\"";
   }
 

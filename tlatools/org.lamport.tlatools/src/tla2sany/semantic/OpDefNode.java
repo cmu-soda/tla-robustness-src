@@ -585,9 +585,30 @@ public class OpDefNode extends OpDefOrDeclNode
     st.addSymbol(us, this);
    }
   
+
+  public String toTLA() {
+	  // if the top level value of the def is a conjunct list or LET-IN then pretty format it
+	  final SemanticNode[] children = getChildren();
+	  if (children != null && children.length == 1) {
+		  final SemanticNode child = children[0];
+		  if (child.getKind() == OpApplKind) {
+			  final OpApplNode childOpAppl = (OpApplNode) child;
+			  final SymbolNode opNode = childOpAppl.getOperator();
+			  final String opKey = opNode.getName().toString();
+			  if (opKey.equals("$ConjList") || opKey.equals("$BoundedExists")) {
+				  return toTLA(true);
+			  }
+		  }
+		  else if (child.getKind() == LetInKind) {
+			  return toTLA(true);
+		  }
+	  }
+	  // otherwise, eschew pretty formatting
+	  return toTLA(false);
+  }
   
   @Override
-  public String toTLA(boolean pretty) {
+  protected String toTLA(boolean pretty) {
 	  // TODO this only works for user def's
 	  final String name = this.getName().toString();
 	  final String body = this.getBody().toTLA(pretty);

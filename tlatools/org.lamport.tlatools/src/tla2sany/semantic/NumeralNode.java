@@ -65,7 +65,7 @@ public class NumeralNode extends ExprNode {
   }
   
   @Override
-  public String toTLA(boolean pretty) {
+  protected String toTLA(boolean pretty) {
 	  return this.toString();
   }
 

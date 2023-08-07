@@ -48,11 +48,7 @@ public class Main {
     	
     	// decompose a TLA+ spec into two, WIP
     	else if (args.length == 3 && args[0].equals("--decomp")) {
-        	System.out.println("A");
-        	Composition.decomposeWith(args);
-        	System.out.println("");
-        	System.out.println("B");
-        	Composition.decomposeWithout(args);
+        	Composition.decompose(args);
     	}
     	
     	// invalid args, display usage

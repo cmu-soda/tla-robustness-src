@@ -469,10 +469,12 @@ public class ExtKripke {
 
 	public static String composeSpecs(final String tla1, final String cfg1, final String tla2, final String cfg2) {
 		TLC tlc1 = new TLC("spec1");
-		TLC.runTLC(tla1, cfg1, tlc1);
+		//TLC.runTLC(tla1, cfg1, tlc1);
+		tlc1.initialize(tla1, cfg1);
 
 		TLC tlc2 = new TLC("spec2");
-		TLC.runTLC(tla2, cfg2, tlc2);
+		//TLC.runTLC(tla2, cfg2, tlc2);
+		tlc2.initialize(tla2, cfg2);
 
 		final Set<String> act1 = getSpecActions(tlc1);
 		final Set<String> act2 = getSpecActions(tlc2);

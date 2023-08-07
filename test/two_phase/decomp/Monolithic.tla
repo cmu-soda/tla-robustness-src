@@ -23,8 +23,7 @@ SndPrepare(rm) ==
   /\ queue' = Append(queue, data)
   /\ rmState[rm] = "working"
   /\ rmState' = [rmState EXCEPT![rm] = "prepared"]
-  /\ UNCHANGED tmState
-  /\ UNCHANGED tmPrepared
+  /\ UNCHANGED <<tmState, tmPrepared>>
 
 RcvPrepare(rm) ==
   LET hd == Head(queue)
@@ -35,8 +34,7 @@ RcvPrepare(rm) ==
   /\ queue' = tl
   /\ tmState = "init"
   /\ tmPrepared' = tmPrepared \cup {rm}
-  /\ UNCHANGED tmState
-  /\ UNCHANGED rmState
+  /\ UNCHANGED <<tmState, rmState>>
 
 SndCommit(rm) ==
   LET data == [msg |-> "commit", theRM |-> rm] IN
@@ -44,8 +42,7 @@ SndCommit(rm) ==
   /\ tmState \in {"init", "commmitted"}
   /\ tmPrepared = RMs
   /\ tmState' = "committed"
-  /\ UNCHANGED tmPrepared
-  /\ UNCHANGED rmState
+  /\ UNCHANGED <<tmPrepared, rmState>>
 
 RcvCommit(rm) ==
   LET hd == Head(queue)
@@ -55,8 +52,7 @@ RcvCommit(rm) ==
   /\ rm = hd[theRM]
   /\ queue' = tl
   /\ rmState' = [rmState EXCEPT![rm] = "committed"]
-  /\ UNCHANGED tmState
-  /\ UNCHANGED tmPrepared
+  /\ UNCHANGED <<tmState, tmPrepared>>
 
 SndAbort(rm) ==
   LET data == [msg |-> "abort", theRM |-> rm] IN
@@ -65,8 +61,7 @@ SndAbort(rm) ==
   /\ queue' = Append(queue, data)
   /\ tmState \in {"init", "aborted"}
   /\ tmState' = "aborted"
-  /\ UNCHANGED tmPrepared
-  /\ UNCHANGED rmState
+  /\ UNCHANGED <<tmPrepared, rmState>>
 
 RcvAbort(rm) ==
   LET hd == Head(queue)
@@ -76,15 +71,12 @@ RcvAbort(rm) ==
   /\ rm = hd[theRM]
   /\ queue' = tl
   /\ rmState' = [rmState EXCEPT![rm] = "aborted"]
-  /\ UNCHANGED tmState
-  /\ UNCHANGED tmPrepared
+  /\ UNCHANGED <<tmState, tmPrepared>>
   
 SilentAbort(rm) ==
   /\ rmState[rm] = "working"
   /\ rmState' = [rmState EXCEPT![rm] = "aborted"]
-  /\ UNCHANGED tmState
-  /\ UNCHANGED tmPrepared
-  /\ UNCHANGED queue
+  /\ UNCHANGED <<tmState, tmPrepared, queue>>
 
 
 Next ==
