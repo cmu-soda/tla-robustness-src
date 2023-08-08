@@ -2,17 +2,12 @@ package tlc2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import tla2sany.semantic.InstanceNode;
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpDefNode;
-import tlc2.tool.Action;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.impl.FastTool;
 
@@ -32,6 +27,22 @@ public class Composition {
     		return;
     	}
     	System.out.println(tlc.getKripke().toFSP());
+    }
+    
+    public static void weakestAssumption(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
+    	
+    	// initialize and run TLC
+    	TLC tlc = new TLC("tlc");
+    	TLC.runTLC(tla, cfg, tlc);
+    	
+    	// error checking
+    	if (tlc.getKripke() == null) {
+    		System.err.println("The spec is malformed, or the file does not exist.");
+    		return;
+    	}
+    	System.out.println(tlc.getKripke().weakestAssumption());
     }
     
     public static String composeSpecs(String[] args) {

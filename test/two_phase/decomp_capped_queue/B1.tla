@@ -1,9 +1,9 @@
---------------------------- MODULE A2 ---------------------------
+--------------------------- MODULE B1 ---------------------------
 EXTENDS Naturals, Sequences, Integers
 
-VARIABLES queue
+VARIABLES tmState, tmPrepared, queue
 
-vars == <<queue>>
+vars == <<queue,tmState,tmPrepared>>
 
 RMs == {"rm1","rm2"}
 
@@ -15,11 +15,14 @@ maxLen == 5
 
 Init ==
 /\ queue = <<>>
+/\ tmState = "init"
+/\ tmPrepared = {}
 
 SndPrepare(rm) ==
 LET data == [msg |-> "prepare",theRM |-> rm] IN
 /\ Len(queue) < maxLen
 /\ queue' = Append(queue,data)
+/\ UNCHANGED <<tmState,tmPrepared>>
 
 RcvPrepare(rm) ==
 LET hd == Head(queue)
@@ -28,11 +31,18 @@ LET hd == Head(queue)
 /\ "prepare" = hd[msg]
 /\ rm = hd[theRM]
 /\ queue' = tl
+/\ tmState = "init"
+/\ tmPrepared' = tmPrepared \cup {rm}
+/\ UNCHANGED <<tmState>>
 
 SndCommit(rm) ==
 LET data == [msg |-> "commit",theRM |-> rm] IN
 /\ Len(queue) < maxLen
 /\ queue' = Append(queue,data)
+/\ tmState \in {"init","commmitted"}
+/\ tmPrepared = RMs
+/\ tmState' = "committed"
+/\ UNCHANGED <<tmPrepared>>
 
 RcvCommit(rm) ==
 LET hd == Head(queue)
@@ -41,11 +51,15 @@ LET hd == Head(queue)
 /\ "commit" = hd[msg]
 /\ rm = hd[theRM]
 /\ queue' = tl
+/\ UNCHANGED <<tmState,tmPrepared>>
 
 SndAbort(rm) ==
 LET data == [msg |-> "abort",theRM |-> rm] IN
 /\ Len(queue) < maxLen
 /\ queue' = Append(queue,data)
+/\ tmState \in {"init","aborted"}
+/\ tmState' = "aborted"
+/\ UNCHANGED <<tmPrepared>>
 
 RcvAbort(rm) ==
 LET hd == Head(queue)
@@ -54,6 +68,7 @@ LET hd == Head(queue)
 /\ "abort" = hd[msg]
 /\ rm = hd[theRM]
 /\ queue' = tl
+/\ UNCHANGED <<tmState,tmPrepared>>
 
 Next ==
 \E rm \in RMs :
@@ -68,4 +83,6 @@ Spec == Init /\ [][Next]_vars
 
 TypeOK ==
 /\ queue \in Seq([msg : {"prepare","commit","abort"},theRM : RMs])
+/\ tmState \in {"init","committed","aborted"}
+/\ tmPrepared \in SUBSET(RMs)
 =============================================================================

@@ -586,6 +586,57 @@ public class ExtKripke {
     	return s.toLowerCase();
     }
     
+    public String weakestAssumption() {
+    	final Set<EKState> goodStates = Utils.setMinus(this.allStates, this.badStates);
+    	
+    	// assign a name to each state
+    	int stateNum = 1;
+    	Map<EKState, String> stateNames = new HashMap<>();
+    	final String initStateName = "S0";
+    	for (final EKState s : goodStates) {
+    		if (this.initStates.contains(s)) {
+        		stateNames.put(s, initStateName);
+    		}
+    		else {
+        		final int num = stateNum++;
+        		final String name = "S" + num;
+        		stateNames.put(s, name);
+    		}
+    	}
+    	
+    	// outgoing transitions for each state
+    	// TLA+ init states get squashed into a single FSP init state
+    	final Map<String, Set<Pair<String, EKState>>> outgoingPerState = new HashMap<>();
+    	for (final EKState s : goodStates) {
+    		final String stateName = stateNames.get(s);
+    		final Set<Pair<String, EKState>> prevOutgoing = outgoingPerState.containsKey(stateName) ? outgoingPerState.get(stateName) : new HashSet<>();
+    		final Set<Pair<String, EKState>> newOutgoing = outgoingTransitions(s);
+    		final Set<Pair<String, EKState>> combineOutgoing = Utils.union(prevOutgoing, newOutgoing);
+    		outgoingPerState.put(stateName, combineOutgoing);
+    	}
+    	
+    	// generate FSP
+    	String initStateDef = "";
+    	ArrayList<String> nonInitStateDefs = new ArrayList<>();
+    	for (final String stateName : outgoingPerState.keySet()) {
+    		final Set<Pair<String, EKState>> outgoing = outgoingPerState.get(stateName);
+    		final String actions = outgoing
+    			.stream()
+    			.filter(outg -> stateNames.containsKey(outg.second))
+    			.map(outg -> toFSPAction(outg.first) + " -> " + stateNames.get(outg.second))
+    			.collect(Collectors.joining(" | "));
+    		final String actionBody = outgoing.isEmpty() ? " = STOP" : " = (" + actions + ")";
+    		final String stateDef = stateName + actionBody;
+    		if (stateName.equals(initStateName)) {
+    			initStateDef = stateDef;
+    		} else {
+        		nonInitStateDefs.add(stateDef);
+    		}
+    	}
+    	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
+    	return fsp;
+    }
+    
     public String toFSP() {
     	// assign a name to each state
     	int stateNum = 1;

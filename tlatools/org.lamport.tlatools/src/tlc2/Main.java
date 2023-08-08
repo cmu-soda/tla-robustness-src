@@ -41,12 +41,17 @@ public class Main {
     		Composition.toFSP(args);
     	}
     	
+    	// generate the weakest assumption for the spec
+    	else if (args.length == 3 && args[0].equals("--wa")) {
+    		Composition.weakestAssumption(args);
+    	}
+    	
     	// compose two TLA+ specs
     	else if (args.length == 5 && args[0].equals("--compose")) {
     		System.out.println(Composition.composeSpecs(args));
     	}
     	
-    	// decompose a TLA+ spec into two, WIP
+    	// decompose a TLA+ spec into two
     	else if (args.length == 3 && args[0].equals("--decomp")) {
         	Composition.decompose(args);
     	}
