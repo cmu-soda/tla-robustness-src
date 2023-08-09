@@ -475,7 +475,12 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  	.stream()
 			  	.map(c -> c.toTLA(false))
 			  	.collect(Collectors.joining(paddedOp));
-			  return prefix + childrenToTLA;
+			  if (!pretty && getChildren().length > 1 && !dontUseParens(op)) {
+				  return "(" + prefix + childrenToTLA + ")";
+			  }
+			  else {
+				  return prefix + childrenToTLA;
+			  }
 		  }
 		  
 		  // bounded quants
@@ -710,12 +715,24 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  || key.equals("$BoundedForall");
   }
   
+  private static boolean dontUseParens(final String key) {
+	  return key.equals("=")
+			  || key.equals(">")
+			  || key.equals("<")
+			  || key.equals(">=")
+			  || key.equals("<=")
+			  || key.equals("\\n");
+  }
+  
   private static boolean isInfixOp(final String key) {
 	  return key.equals("=")
 			  || key.equals(">")
 			  || key.equals("<")
 			  || key.equals(">=")
 			  || key.equals("<=")
+			  || key.equals("+")
+			  || key.equals("-")
+			  || key.equals("=>")
 			  || key.equals("$ConjList")
 			  || key.equals("$DisjList")
 			  || key.equals("\\union")

@@ -26,6 +26,7 @@ public class Composition {
     		System.err.println("The spec is malformed, or the file does not exist.");
     		return;
     	}
+    	//System.err.println("to-fsp # states: " + tlc.getKripke().reach().size());
     	System.out.println(tlc.getKripke().toFSP());
     }
     

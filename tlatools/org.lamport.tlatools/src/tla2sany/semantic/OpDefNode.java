@@ -595,7 +595,7 @@ public class OpDefNode extends OpDefOrDeclNode
 			  final OpApplNode childOpAppl = (OpApplNode) child;
 			  final SymbolNode opNode = childOpAppl.getOperator();
 			  final String opKey = opNode.getName().toString();
-			  if (opKey.equals("$ConjList") || opKey.equals("$BoundedExists")) {
+			  if (opKey.equals("$ConjList") || opKey.equals("$DisjList") || opKey.equals("$BoundedExists")) {
 				  return toTLA(true);
 			  }
 		  }
