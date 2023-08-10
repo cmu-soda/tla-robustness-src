@@ -12,6 +12,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import cmu.isr.tolerance.utils.LtsUtils;
+import cmu.isr.ts.DetLTS;
+import cmu.isr.ts.LTS;
+import cmu.isr.ts.lts.CompactLTS;
+import net.automatalib.automata.fsa.impl.compact.CompactDFA;
+import net.automatalib.automata.fsa.impl.compact.CompactNFA;
+import net.automatalib.util.automata.builders.AutomatonBuilders;
+import net.automatalib.words.impl.Alphabets;
 import tlc2.TLC;
 import tlc2.Utils;
 import tlc2.Utils.Pair;
@@ -36,6 +44,8 @@ public class ExtKripke {
     private Map<Pair<EKState,EKState>, String> deltaActions;
     private Map<Pair<EKState,EKState>, Set<String>> deltaActionsWithParams;
     private Set<EKState> envStates;
+    private Set<String> allActions;
+    
 	private static final String UNCHANGED = "UNCHANGED";
 	private static final String INSTANCE = "INSTANCE";
 	private static final String VARIABLES = "VARIABLES";
@@ -54,6 +64,7 @@ public class ExtKripke {
         this.deltaActions = new HashMap<>();
         this.deltaActionsWithParams = new HashMap<>();
     	this.envStates = new HashSet<>();
+    	this.allActions = new HashSet<>();
     }
 
     public ExtKripke(final ExtKripke src) {
@@ -64,6 +75,7 @@ public class ExtKripke {
     	this.deltaActions = new HashMap<>(src.deltaActions);
     	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
     	this.envStates = new HashSet<>(src.envStates);
+    	this.allActions = new HashSet<>(src.allActions);
     }
 
 	// assumes that the state space of srcClosed is more refined than the state space of srcM.
@@ -132,8 +144,12 @@ public class ExtKripke {
     	final EKState dstEks = new EKState(dstName);
     	final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
     	
-    	final String actName = act.getName().toString();
-    	Utils.assertNotNull(actName, "TLC added null action name to an ExtKripke instance!");
+    	final String rawActName = act.getName().toString();
+    	Utils.assertNotNull(rawActName, "TLC added null action name to an ExtKripke instance!");
+    	char c[] = rawActName.toCharArray();
+    	c[0] = Character.toLowerCase(c[0]);
+    	final String actName = new String(c);
+    	
     	delta.add(transition);
     	deltaActions.put(transition, actName);
 
@@ -151,6 +167,7 @@ public class ExtKripke {
         	deltaActionsWithParams.put(transition, new HashSet<>());
     	}
     	deltaActionsWithParams.get(transition).add(actNameWParams);
+    	allActions.add(actNameWParams);
     }
 
 
@@ -683,6 +700,59 @@ public class ExtKripke {
     	}
     	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
     	return fsp;
+    }
+    
+    public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+    	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
+    	
+    	Map<EKState, Integer> ekToLtsStates = new HashMap<>();
+    	final Set<EKState> goodStates = Utils.setMinus(this.allStates, this.badStates);
+    	for (final EKState ekState : goodStates) {
+    		final boolean isInitState = this.initStates.contains(ekState);
+    		final boolean isGoodState = true;
+			final int ltsState = isInitState ? compactNFA.addInitialState(isGoodState) : compactNFA.addState(isGoodState);
+			ekToLtsStates.put(ekState, ltsState);
+    	}
+    	
+    	for (final Pair<EKState,EKState> tr : this.delta) {
+    		final EKState ekSrc = tr.first;
+    		final EKState ekDst = tr.second;
+    		if (ekToLtsStates.containsKey(ekSrc) && ekToLtsStates.containsKey(ekDst)) {
+        		final int src = ekToLtsStates.get(tr.first);
+        		final int dst = ekToLtsStates.get(tr.second);
+        		final Set<String> acts = this.deltaActionsWithParams.get(tr);
+        		for (final String a : acts) {
+        			compactNFA.addTransition(src, a, dst);
+        		}
+    		}
+    	}
+    	
+    	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
+    	return LtsUtils.INSTANCE.toDeterministic(compactLTS);
+    }
+    
+    public LTS<Integer, String> toNFA() {
+    	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
+    	
+    	Map<EKState, Integer> ekToLtsStates = new HashMap<>();
+    	for (final EKState ekState : this.allStates) {
+    		final boolean isInitState = this.initStates.contains(ekState);
+    		// we consider bad states to be good here. the property WA will take care of bad states
+    		final boolean isGoodState = true; // this.badStates.contains(ekState);
+			final int ltsState = isInitState ? compactNFA.addInitialState(isGoodState) : compactNFA.addState(isGoodState);
+			ekToLtsStates.put(ekState, ltsState);
+    	}
+    	
+    	for (final Pair<EKState,EKState> tr : this.delta) {
+    		final int src = ekToLtsStates.get(tr.first);
+    		final int dst = ekToLtsStates.get(tr.second);
+    		final Set<String> acts = this.deltaActionsWithParams.get(tr);
+    		for (final String a : acts) {
+    			compactNFA.addTransition(src, a, dst);
+    		}
+    	}
+    	
+    	return new CompactLTS<String>(compactNFA);
     }
     
     public String toPartialTLASpec(String varsSeqName, String specFairness, boolean strongFairness) {

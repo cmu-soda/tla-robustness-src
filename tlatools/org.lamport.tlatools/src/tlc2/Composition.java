@@ -6,6 +6,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import cmu.isr.assumption.SubsetConstructionGenerator;
+import cmu.isr.tolerance.utils.LtsUtils;
+import cmu.isr.ts.DetLTS;
+import cmu.isr.ts.LTS;
+import cmu.isr.ts.lts.ltsa.LTSACall;
+import cmu.isr.ts.lts.ltsa.StringLTSInput;
+import cmu.isr.ts.lts.ltsa.StringLTSOutput;
+import cmu.isr.ts.lts.ltsa.FSPWriter;
+import lts.CompositeState;
+import lts.LTSCompiler;
+import lts.LTSInputString;
+import lts.SymbolTable;
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpDefNode;
 import tlc2.tool.ExtKripke;
@@ -13,9 +25,163 @@ import tlc2.tool.impl.FastTool;
 
 public class Composition {
     
+    public static void decompVerify(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
+    	
+    	PerfTimer timer = new PerfTimer();
+    	SymbolTable.init();
+    	
+    	// temporary hack
+    	final String noInvsCfg = "no_invs.cfg";
+    	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
+    	
+    	final List<String> components = decompAll(tla, cfg);
+    	Utils.assertTrue(components.size() > 0, "Decomposition returned no components");
+    	
+    	timer.reset();
+    	final String propComponent = components.get(0);
+    	TLC tlcProp = new TLC();
+    	TLC.runTLC(propComponent, cfg, tlcProp);
+    	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
+    	final ExtKripke propKS = tlcProp.getKripke();
+    	//DetLTS<Integer, String> ltsProp = fspToDFA(propKS.weakestAssumption());
+    	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
+    	System.out.println("prop runTLC and WA gen: " + timer.timeElapsed());
+    	
+    	if (propertyIsFalse(ltsProp)) {
+			System.out.println("Property may be violated.");
+			return;
+		}
+    	
+    	for (int i = 0; i < components.size(); ++i) {
+    		final int iter = i + 1;
+    		final String comp = components.get(i);
+    		System.out.println("iter " + iter + ": " + comp);
+    		TLC tlc = new TLC();
+    		timer.reset();
+        	TLC.runTLC(comp, noInvsCfg, tlc);
+        	System.out.println("runTLC: " + timer.timeElapsed());
+        	Utils.assertNotNull(tlc.getKripke(), "Error running TLC on a component");
+        	timer.reset();
+        	//LTS<Integer, String> ltsComp = fspToNFA(tlc.getKripke().toFSP());
+        	LTS<Integer, String> ltsComp = tlc.getKripke().toNFA();
+    		System.out.println("converting KS to NFA: " + timer.timeElapsed());
+
+    		/*
+    		System.out.println("comp:");
+    		FSPWriter.INSTANCE.write(System.out, ltsComp);
+    		System.out.println();
+    		System.out.println("prop:");
+    		FSPWriter.INSTANCE.write(System.out, ltsProp);
+    		System.out.println();
+    		*/
+        	
+    		timer.reset();
+    		System.out.println("# err states in ltsComp: " + numErrStates(ltsComp));
+    		System.out.println("# err states in ltsProp: " + numErrStates(ltsProp));
+        	if (LtsUtils.INSTANCE.satisfies(ltsComp, ltsProp)) {
+        		System.out.println("sat checking: " + timer.timeElapsed());
+        		System.out.println("Property satisfied!");
+        		/*
+        		System.out.println("comp:");
+        		FSPWriter.INSTANCE.write(System.out, ltsComp);
+        		System.out.println();
+        		System.out.println("prop:");
+        		FSPWriter.INSTANCE.write(System.out, ltsProp);
+        		System.out.println();
+        		System.out.println("# states: " + ltsProp.getStates().size());
+        		System.out.println("# init states: " + ltsProp.getInitialStates().size());
+        		System.out.println("init state: " + ltsProp.getInitialState());
+        		System.out.println("err state: " + ltsProp.getErrorState());
+        		System.out.println("state ids: " + ltsProp.stateIDs().toString());
+        		*/
+        		return;
+        	}
+        	else if (i+1 < components.size()) {
+        		System.out.println("sat checking: " + timer.timeElapsed());
+        		timer.reset();
+        		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
+        		ltsProp = waGen.generate(true);
+        		System.out.println("WA gen: " + timer.timeElapsed());
+        		
+        		if (propertyIsFalse(ltsProp)) {
+        			System.out.println("Property may be violated.");
+            		//FSPWriter.INSTANCE.write(System.out, ltsProp);
+        			//System.out.println();
+        			return;
+        		}
+        	}
+    	}
+		System.out.println("Property may be violated.");
+    }
+    
+    private static boolean propertyIsFalse(final DetLTS<Integer, String> ltsProp) {
+    	// if any initial state is false then the entire LTS is false
+    	return ltsProp.getInitialStates()
+    			.stream()
+    			.anyMatch(s -> !ltsProp.isAccepting(s));
+    }
+    
+    private static int numErrStates(final LTS<Integer, String> lts) {
+    	return lts.getStates()
+    			.stream()
+    			.filter(s -> !lts.isAccepting(s))
+    			.collect(Collectors.summingInt(s -> 1));
+    }
+    
+    private static DetLTS<Integer, String> fspToDFA(final String fsp) {
+    	StringLTSOutput ltsOutput = new StringLTSOutput();
+    	LTSCompiler ltsCompiler = new LTSCompiler(new StringLTSInput(fsp), ltsOutput, System.getProperty("user.dir"));
+    	CompositeState lts = ltsCompiler.compile("DEFAULT");
+    	lts.compose(ltsOutput);
+    	return LTSACall.INSTANCE.toDetLTS(lts, false);
+    }
+    
+    private static LTS<Integer, String> fspToNFA(final String fsp) {
+    	StringLTSOutput ltsOutput = new StringLTSOutput();
+    	LTSCompiler ltsCompiler = new LTSCompiler(new StringLTSInput(fsp), ltsOutput, System.getProperty("user.dir"));
+    	CompositeState lts = ltsCompiler.compile("DEFAULT");
+    	lts.compose(ltsOutput);
+    	return LTSACall.INSTANCE.toLTS(lts, false);
+    }
+    
+    private static List<String> decompAll(String tla, String cfg) {
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	
+    	// get state vars to decompose with
+    	Set<String> allVars = stateVarsInSpec(tla, cfg);
+    	Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
+    	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+    	
+    	List<String> components = new ArrayList<>();
+    	int iter = 1;
+    	while (propertyVars.size() > 0 && nonPropertyVars.size() > 0) {
+    		final String aSpec = "A" + iter;
+    		final String bSpec = "B" + iter;
+    		decompose(aSpec, propertyVars, tla, cfg, true);
+        	decompose(bSpec, nonPropertyVars, tla, cfg, false);
+        	components.add(aSpec);
+        	
+        	allVars = stateVarsInSpec(bSpec, "no_invs.cfg");
+        	propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg");
+        	nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+        	tla = bSpec;
+        	cfg = "no_invs.cfg";
+        	++iter;
+    	}
+    	
+    	components.add("B" + (iter-1));
+    	return components;
+    }
+    
     public static void toFSP(String[] args) {
     	final String tla = args[1];
     	final String cfg = args[2];
+    	
+    	//final long calcStart = System.currentTimeMillis();
     	
     	// initialize and run TLC
     	TLC tlc = new TLC("tlc");
@@ -26,8 +192,13 @@ public class Composition {
     		System.err.println("The spec is malformed, or the file does not exist.");
     		return;
     	}
-    	//System.err.println("to-fsp # states: " + tlc.getKripke().reach().size());
+    	//final long calcEnd = System.currentTimeMillis();
+    	//final long writeStart = System.currentTimeMillis();
     	System.out.println(tlc.getKripke().toFSP());
+    	//final long writeEnd = System.currentTimeMillis();
+    	//System.err.println("to-fsp # states: " + tlc.getKripke().reach().size());
+    	//System.err.println("to-fsp calc time: " + (calcEnd - calcStart));
+    	//System.err.println("to-fsp write time: " + (writeEnd - writeStart));
     }
     
     public static void weakestAssumption(String[] args) {

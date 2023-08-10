@@ -36,6 +36,11 @@ public class Main {
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
     	
+    	// invoke the Decomposition Verify algorithm to perform MC
+    	else if (args.length == 3 && args[0].equals("--verif")) {
+        	Composition.decompVerify(args);
+    	}
+    	
     	// convert a TLA+ spec to FSP
     	else if (args.length == 3 && args[0].equals("--to-fsp")) {
     		Composition.toFSP(args);

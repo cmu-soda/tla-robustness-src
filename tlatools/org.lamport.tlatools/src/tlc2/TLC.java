@@ -277,8 +277,9 @@ public class TLC {
     /**
      * Default Initialization
      */
+    private static int initCounter = 0;
 	public TLC() {
-		this("default");
+		this("default" + initCounter++);
 	}
     
     /**
