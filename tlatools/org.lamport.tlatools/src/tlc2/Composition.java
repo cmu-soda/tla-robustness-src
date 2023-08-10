@@ -45,89 +45,51 @@ public class Composition {
     	TLC.runTLC(propComponent, cfg, tlcProp);
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
-    	//DetLTS<Integer, String> ltsProp = fspToDFA(propKS.weakestAssumption());
     	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
     	System.out.println("prop runTLC and WA gen: " + timer.timeElapsed());
     	
-    	if (propertyIsFalse(ltsProp)) {
+    	if (ltsProp.propertyIsTrue()) {
+    		System.out.println("Property satisfied!");
+    		return;
+		}
+		else if (ltsProp.propertyIsFalse()) {
 			System.out.println("Property may be violated.");
+    		//FSPWriter.INSTANCE.write(System.out, ltsProp);
 			return;
 		}
     	
     	for (int i = 0; i < components.size(); ++i) {
     		final int iter = i + 1;
     		final String comp = components.get(i);
+    		System.out.println();
     		System.out.println("iter " + iter + ": " + comp);
-    		TLC tlc = new TLC();
+    		
+    		TLC tlcComp = new TLC();
     		timer.reset();
-        	TLC.runTLC(comp, noInvsCfg, tlc);
+        	TLC.runTLC(comp, noInvsCfg, tlcComp);
         	System.out.println("runTLC: " + timer.timeElapsed());
-        	Utils.assertNotNull(tlc.getKripke(), "Error running TLC on a component");
+        	Utils.assertNotNull(tlcComp.getKripke(), "Error running TLC on a component");
         	timer.reset();
-        	//LTS<Integer, String> ltsComp = fspToNFA(tlc.getKripke().toFSP());
-        	LTS<Integer, String> ltsComp = tlc.getKripke().toNFA();
+        	LTS<Integer, String> ltsComp = tlcComp.getKripke().toNFA();
     		System.out.println("converting KS to NFA: " + timer.timeElapsed());
-
-    		/*
-    		System.out.println("comp:");
-    		FSPWriter.INSTANCE.write(System.out, ltsComp);
-    		System.out.println();
-    		System.out.println("prop:");
-    		FSPWriter.INSTANCE.write(System.out, ltsProp);
-    		System.out.println();
-    		*/
-        	
+    		
     		timer.reset();
-    		System.out.println("# err states in ltsComp: " + numErrStates(ltsComp));
-    		System.out.println("# err states in ltsProp: " + numErrStates(ltsProp));
-        	if (LtsUtils.INSTANCE.satisfies(ltsComp, ltsProp)) {
-        		System.out.println("sat checking: " + timer.timeElapsed());
-        		System.out.println("Property satisfied!");
-        		/*
-        		System.out.println("comp:");
-        		FSPWriter.INSTANCE.write(System.out, ltsComp);
-        		System.out.println();
-        		System.out.println("prop:");
-        		FSPWriter.INSTANCE.write(System.out, ltsProp);
-        		System.out.println();
-        		System.out.println("# states: " + ltsProp.getStates().size());
-        		System.out.println("# init states: " + ltsProp.getInitialStates().size());
-        		System.out.println("init state: " + ltsProp.getInitialState());
-        		System.out.println("err state: " + ltsProp.getErrorState());
-        		System.out.println("state ids: " + ltsProp.stateIDs().toString());
-        		*/
-        		return;
-        	}
-        	else if (i+1 < components.size()) {
-        		System.out.println("sat checking: " + timer.timeElapsed());
-        		timer.reset();
-        		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
-        		ltsProp = waGen.generate(true);
-        		System.out.println("WA gen: " + timer.timeElapsed());
+    		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
+    		ltsProp = waGen.generate(true);
+    		System.out.println("WA gen: " + timer.timeElapsed());
         		
-        		if (propertyIsFalse(ltsProp)) {
-        			System.out.println("Property may be violated.");
-            		//FSPWriter.INSTANCE.write(System.out, ltsProp);
-        			//System.out.println();
-        			return;
-        		}
-        	}
+    		if (ltsProp.propertyIsTrue()) {
+        		System.out.println("Property satisfied!");
+        		return;
+    		}
+    		else if (ltsProp.propertyIsFalse()) {
+    			System.out.println("Property may be violated.");
+        		//FSPWriter.INSTANCE.write(System.out, ltsProp);
+    			return;
+    		}
     	}
+		//System.out.println("End of loop.");
 		System.out.println("Property may be violated.");
-    }
-    
-    private static boolean propertyIsFalse(final DetLTS<Integer, String> ltsProp) {
-    	// if any initial state is false then the entire LTS is false
-    	return ltsProp.getInitialStates()
-    			.stream()
-    			.anyMatch(s -> !ltsProp.isAccepting(s));
-    }
-    
-    private static int numErrStates(final LTS<Integer, String> lts) {
-    	return lts.getStates()
-    			.stream()
-    			.filter(s -> !lts.isAccepting(s))
-    			.collect(Collectors.summingInt(s -> 1));
     }
     
     private static DetLTS<Integer, String> fspToDFA(final String fsp) {
