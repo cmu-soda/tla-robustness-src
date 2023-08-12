@@ -67,9 +67,26 @@ implements ExploreNode, LevelConstants {
   
   @Override
   public void removeUnusedLetDefs() {
+	  // find defs that are used in later LET defs, not just used in the body
+	  Set<SymbolNode> defsUsedInLaterLetDef = new HashSet<>();
+	  for (int i = 0; i < this.opDefs.length; ++i) {
+		  final SymbolNode def = this.opDefs[i];
+		  final String defName = def.getName().toString();
+		  for (int j = i+1; j < this.opDefs.length; ++j) {
+			  final SymbolNode laterDef = this.opDefs[j];
+			  if (laterDef.containsNodeWithName(defName)) {
+				  defsUsedInLaterLetDef.add(def);
+			  }
+		  }
+	  }
+	  
+	  // remove defs that aren't used in the body or by any later LET defs
 	  this.opDefs = Utils.toArrayList(this.opDefs)
 			  	.stream()
-			  	.filter(d -> this.body.containsNodeWithName(d.getName().toString()))
+			  	.filter(d -> {
+			  		return this.body.containsNodeWithName(d.getName().toString())
+			  				|| defsUsedInLaterLetDef.contains(d);
+			  	})
 			  	.toArray(SymbolNode[]::new);
 	  
 	  if (getChildren() != null) {
@@ -101,15 +118,25 @@ implements ExploreNode, LevelConstants {
   
   @Override
   protected String toTLA(boolean pretty) {
-	  if (this.opDefs.length == 0) {
-		  return this.getBody().toTLA(pretty);
-	  }
-	  else {
+	  pretty = true; // this seems to work better
+	  final boolean hasDefs = this.opDefs.length > 0;
+	  final int newIndents = hasDefs ? 2 : 0;
+	  
+	  final String tlaBodyRaw = this.getBody().toTLA(pretty);
+	  final int prevIndentCount = tlaBodyRaw.length() - tlaBodyRaw.stripLeading().length();
+	  final int indentCount = prevIndentCount + newIndents;
+	  final String indents = " ".repeat(indentCount);
+	  final String tlaBody = tlaBodyRaw.replace("\n", "\n" + indents);
+	  
+	  if (hasDefs) {
 		  final String defsStr = Utils.toArrayList(this.opDefs)
 				  .stream()
 				  .map(d -> d.toTLA(false))
 				  .collect(Collectors.joining("\n    "));
-		  return "LET " + defsStr + " IN\n" + this.getBody().toTLA(pretty);
+		  return "LET " + defsStr + " IN\n" + indents + tlaBody;
+	  }
+	  else {
+		  return tlaBody;
 	  }
   }
 

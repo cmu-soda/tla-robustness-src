@@ -288,6 +288,9 @@ public class Composition {
     	tlc.initialize(tla, cfg);
     	final FastTool ft = (FastTool) tlc.tool;
     	
+    	// TODO we could definitely mine this from the spec
+    	final String nextName = "Next";
+    	
     	// calculate variables to remove from the spec
     	final Set<String> allVars = Utils.toArrayList(ft.getVarNames())
         		.stream()
@@ -298,6 +301,7 @@ public class Composition {
 		final Set<String> actionNames = Utils.toArrayList(ft.getActions())
 				.stream()
 				.map(a -> a.getName().toString())
+				.filter(a -> !a.equals(nextName)) // the "Next" transition relation should not be filtered out
 				.collect(Collectors.toSet());
 		final Set<String> invariants = Utils.toArrayList(ft.getInvNames())
 				.stream()

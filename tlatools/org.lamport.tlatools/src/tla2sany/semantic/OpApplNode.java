@@ -483,8 +483,8 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  }
 		  }
 		  
-		  // bounded quants
-		  else if (isBoundedQuant(opKey)) {
+		  // bounded quants + CHOOSE
+		  else if (isBoundedQuant(opKey) || isBoundedChoose(opKey)) {
 			  Utils.assertTrue(getChildren().length == 2, "Bounded quants should have two args!");
 			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
 			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
@@ -622,6 +622,39 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  return "[" + body + "]";
 		  }
 		  
+		  // set comprehension
+		  else if (isSubsetOf(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "SubsetOf (set comprehension) must have exactly 2 args!");
+			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
+			  final FormalParamNode[] params = paramsPerDomain[0];
+			  
+			  final String domain = getChildren()[0].toTLA(false);
+			  final String qvars = Utils.toArrayList(params)
+					  .stream()
+					  .map(p -> p.getName().toString())
+					  .collect(Collectors.joining(","));
+			  final String body = getChildren()[1].toTLA(false);
+			  return "{ " + qvars + " \\in " + domain + " : " + body + " }";
+		  }
+		  
+		  // . operator for records
+		  else if (isRcdSelect(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "RcdSelect (.) must have exactly 2 args!");
+			  final String lhs = getChildren()[0].toTLA(false);
+			  final String rhs = getChildren()[1].toTLA(false).replace("\"", ""); // remove quotes from the field
+			  return lhs + "." + rhs;
+		  }
+		  
+		  // IF-THEN-ELSE
+		  else if (isITE(opKey)) {
+			  Utils.assertTrue(getChildren().length == 3, "IF-THEN-ELSE must have exactly 3 args!");
+			  final String cond = getChildren()[0].toTLA(false);
+			  final String tCond = getChildren()[1].toTLA(false);
+			  final String fCond = getChildren()[2].toTLA(false);
+			  return "IF " + cond + " THEN " + tCond + " ELSE " + fCond;
+		  }
+		  
 		  // inside of the [] temporal op
 		  else if (isSquareAct(opKey)) {
 			  Utils.assertTrue(getChildren().length == 2, "SquareAct op should have exactly 2 args!");
@@ -702,12 +735,28 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  return key.equals("$SetOfRcds");
   }
   
+  private static boolean isSubsetOf(final String key) {
+	  return key.equals("$SubsetOf");
+  }
+  
+  private static boolean isRcdSelect(final String key) {
+	  return key.equals("$RcdSelect");
+  }
+  
+  private static boolean isITE(final String key) {
+	  return key.equals("$IfThenElse");
+  }
+  
   private static boolean isSquareAct(final String key) {
 	  return key.equals("$SquareAct");
   }
   
   private static boolean isAlwaysTemporalOp(final String key) {
 	  return key.equals("[]");
+  }
+  
+  private static boolean isBoundedChoose(final String key) {
+	  return key.equals("$BoundedChoose");
   }
   
   private static boolean isBoundedQuant(final String key) {
@@ -717,6 +766,8 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   
   private static boolean dontUseParens(final String key) {
 	  return key.equals("=")
+			  || key.equals("/=")
+			  || key.equals("#")
 			  || key.equals(">")
 			  || key.equals("<")
 			  || key.equals(">=")
@@ -726,16 +777,23 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   
   private static boolean isInfixOp(final String key) {
 	  return key.equals("=")
+			  || key.equals("/=")
+			  || key.equals("#")
 			  || key.equals(">")
 			  || key.equals("<")
 			  || key.equals(">=")
 			  || key.equals("<=")
+			  || key.equals("\\leq")
+			  || key.equals("\\geq")
 			  || key.equals("+")
 			  || key.equals("-")
+			  || key.equals("*")
+			  || key.equals("\\div")
 			  || key.equals("=>")
 			  || key.equals("$ConjList")
 			  || key.equals("$DisjList")
 			  || key.equals("\\union")
+			  || key.equals("\\intersect")
 			  || key.equals("\\in")
 			  || key.equals("\\land")
 			  || key.equals("\\lor");
@@ -751,14 +809,22 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  return "\\E";
 	  case "$BoundedForall":
 		  return "\\A";
+	  case "$BoundedChoose":
+		  return "CHOOSE";
 	  case "\\union":
 		  return "\\cup";
+	  case "\\intersect":
+		  return "\\cap";
 	  case "\\land":
 		  return "/\\";
 	  case "\\lor":
 		  return "\\/";
 	  case "\\lnot":
 		  return "~";
+	  case "\\leq":
+		  return "<=";
+	  case "\\geq":
+		  return ">=";
 	  default:
 		  return key;
 	  }
