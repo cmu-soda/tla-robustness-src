@@ -117,6 +117,21 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars) {
+	  final Set<String> additionalVarsInDefs = Utils.toArrayList(this.opDefs)
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+					  (n, m) -> Utils.union(n, m));
+	  final Set<String> additionalVarsInBody = Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+					  (n, m) -> Utils.union(n, m));
+	  return Utils.union(additionalVarsInDefs, additionalVarsInBody);
+  }
+  
+  @Override
   protected String toTLA(boolean pretty) {
 	  pretty = true; // this seems to work better
 	  final boolean hasDefs = this.opDefs.length > 0;

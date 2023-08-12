@@ -26,10 +26,12 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import model.InJarFilenameToStream;
 import model.ModelInJar;
 import tla2sany.parser.SyntaxTreeNode;
+import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpApplNode;
 import tla2sany.semantic.OpDefNode;
 import tlc2.debug.TLCDebugger;
@@ -427,13 +429,20 @@ public class TLC {
         TLC.currentInstance = null;
     }
     
+    public Set<String> stateVarsInSpec() {
+    	final FastTool ft = (FastTool) this.tool;
+    	return Utils.toArrayList(ft.getVarNames())
+        		.stream()
+        		.collect(Collectors.toSet());
+    }
+    
     public Set<String> stateVariablesUsedInInvariants() {
     	final FastTool ft = (FastTool) this.tool;
-		Set<String> stateVarNames = new HashSet<>();
+		Set<String> stateVars = new HashSet<>();
 		for (final Action inv : ft.getInvariants()) {
-			inv.getOpDef().stateVarVisit(stateVarNames);
+			inv.getOpDef().stateVarVisit(stateVars);
 		}
-		return stateVarNames;
+		return stateVars;
     }
     
     public boolean hasInvariant(final String inv) {
@@ -444,6 +453,46 @@ public class TLC {
     		}
     	}
     	return false;
+    }
+    
+    /**
+     * Given a set of vars <vars>, this method will calculate all variables that occur within the same
+     * expressions. We perform this calculation by:
+     * 1. For each variable in <vars>, collect all variables that occur in the same expression as the
+     * 		variable.
+     * 2. Repeat step 1 until fix point.
+     * 
+     * @param vars
+     * @return
+     */
+    public Set<String> stateVarsUsedInSameExprs(Set<String> vars) {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allVars = this.stateVarsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+    			.filter(d -> !d.isStandardModule())
+    			.collect(Collectors.toList());
+    	
+    	// main logic
+    	boolean reachedFixPoint = false;
+    	while (!reachedFixPoint) {
+    		reachedFixPoint = true;
+    		for (OpDefNode n : moduleNodes) {
+    			final Set<String> untouchedStateVars = Utils.setMinus(allVars, vars);
+    			// Step 1
+				final Set<String> additionalVars = n.stateVarsThatOccurInVars(untouchedStateVars, vars);
+				if (!vars.containsAll(additionalVars)) {
+					reachedFixPoint = false; // Step 2
+					vars.addAll(additionalVars);
+				}
+    		}
+    	}
+    	
+    	return vars;
     }
     
     

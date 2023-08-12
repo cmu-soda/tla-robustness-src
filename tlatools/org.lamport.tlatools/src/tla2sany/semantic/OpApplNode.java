@@ -458,6 +458,55 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars) {
+	  if (isExprNode(this.getOperator().getName().toString())) {
+		  if (this.containsStateVars(vars)) {
+			  // at least one of the state vars in <vars> occurs in this expr
+			  return notInVars
+					  .stream()
+					  .filter(v -> this.containsNodeWithName(v))
+					  .collect(Collectors.toSet());
+		  }
+		  else {
+			  // no state vars in <vars> occur in this expr
+			  return new HashSet<>();
+		  }
+	  }
+	  else {
+		  if (getChildren() == null) {
+			  return new HashSet<String>();
+		  }
+		  return Utils.toArrayList(getChildren())
+				  .stream()
+				  .reduce(vars,
+						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+						  (n, m) -> Utils.union(n, m));
+	  }
+  }
+  
+  private static boolean isExprNode(final String key) {
+	  return key.equals("=")
+			  || key.equals("/=")
+			  || key.equals("#")
+			  || key.equals(">")
+			  || key.equals("<")
+			  || key.equals(">=")
+			  || key.equals("<=")
+			  || key.equals("\\leq")
+			  || key.equals("\\geq")
+			  || key.equals("+")
+			  || key.equals("-")
+			  || key.equals("*")
+			  || key.equals("\\div")
+			  || key.equals("=>")
+			  || key.equals("$DisjList")
+			  || key.equals("\\union")
+			  || key.equals("\\intersect")
+			  || key.equals("\\in")
+			  || key.equals("\\lnot");
+  }
+  
+  @Override
   protected String toTLA(boolean pretty) {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();

@@ -114,8 +114,9 @@ public class Composition {
     	tlc.initialize(tla, cfg);
     	
     	// get state vars to decompose with
+    	Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
+    	Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
     	Set<String> allVars = stateVarsInSpec(tla, cfg);
-    	Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
     	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
     	
     	List<String> components = new ArrayList<>();
@@ -197,8 +198,9 @@ public class Composition {
     	tlc.initialize(tla, cfg);
     	
     	// get state vars to decompose with
+    	Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
+    	Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
     	Set<String> allVars = stateVarsInSpec(tla, cfg);
-    	Set<String> propertyVars = tlc.stateVariablesUsedInInvariants();
     	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
     	
     	int iter = 1;
@@ -221,11 +223,7 @@ public class Composition {
     	// initialize TLC, DO NOT run it though
     	TLC tlc = new TLC("sv_" + tla);
     	tlc.initialize(tla, cfg);
-    	final FastTool ft = (FastTool) tlc.tool;
-    	
-    	return Utils.toArrayList(ft.getVarNames())
-        		.stream()
-        		.collect(Collectors.toSet());
+    	return tlc.stateVarsInSpec();
     }
     
     private static Set<String> actionsInSpec(final String tla, final String cfg) {
@@ -279,7 +277,10 @@ public class Composition {
     	
     	// find the vars that may be changed in ifaceActions in bSpec
     	final Set<String> varsThatMayChange = Utils.setMinus(bVars, unchangedBVars);
-    	return varsThatMayChange;
+    	
+    	// also compute all vars that occur in the same expressions as varsThatMayChange
+    	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(varsThatMayChange);
+    	return propertyVars;
     }
     
     private static void decompose(final String specName, final Set<String> keepVars, final String tla, final String cfg, boolean includeInvs) {

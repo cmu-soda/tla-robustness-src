@@ -6,6 +6,7 @@ package tla2sany.semantic;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
@@ -125,6 +126,11 @@ public abstract class SemanticNode
 	  }
   }
   
+  /**
+   * Returns whether this SemanticNode contains *any* of the state vars in <vars>
+   * @param vars
+   * @return
+   */
   public boolean containsStateVars(final Set<String> vars) {
 	  if (getChildren() == null) {
 		  return false;
@@ -168,6 +174,24 @@ public abstract class SemanticNode
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.varIsUnchanged(var));
+  }
+  
+  /**
+   * Returns the subset of state vars in <notInVars> that occur in expressions that the
+   * vars in <vars> also occur in. The return value need not contain the vars in <vars>.
+   * @param notInVars
+   * @param vars
+   * @return
+   */
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+					  (n, m) -> Utils.union(n, m));
   }
   
   protected String toTLA(boolean pretty) {
