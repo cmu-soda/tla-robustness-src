@@ -47,6 +47,7 @@ public class Composition {
     	final ExtKripke propKS = tlcProp.getKripke();
     	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
     	System.out.println("prop runTLC and WA gen: " + timer.timeElapsed());
+    	System.out.println("# components: " + components.size());
     	
     	if (ltsProp.propertyIsTrue()) {
     		System.out.println("Property satisfied!");
@@ -90,54 +91,6 @@ public class Composition {
     	}
 		//System.out.println("End of loop.");
 		System.out.println("Property may be violated.");
-    }
-    
-    private static DetLTS<Integer, String> fspToDFA(final String fsp) {
-    	StringLTSOutput ltsOutput = new StringLTSOutput();
-    	LTSCompiler ltsCompiler = new LTSCompiler(new StringLTSInput(fsp), ltsOutput, System.getProperty("user.dir"));
-    	CompositeState lts = ltsCompiler.compile("DEFAULT");
-    	lts.compose(ltsOutput);
-    	return LTSACall.INSTANCE.toDetLTS(lts, false);
-    }
-    
-    private static LTS<Integer, String> fspToNFA(final String fsp) {
-    	StringLTSOutput ltsOutput = new StringLTSOutput();
-    	LTSCompiler ltsCompiler = new LTSCompiler(new StringLTSInput(fsp), ltsOutput, System.getProperty("user.dir"));
-    	CompositeState lts = ltsCompiler.compile("DEFAULT");
-    	lts.compose(ltsOutput);
-    	return LTSACall.INSTANCE.toLTS(lts, false);
-    }
-    
-    private static List<String> decompAll(String tla, String cfg) {
-    	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC();
-    	tlc.initialize(tla, cfg);
-    	
-    	// get state vars to decompose with
-    	Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
-    	Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
-    	Set<String> allVars = stateVarsInSpec(tla, cfg);
-    	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
-    	
-    	List<String> components = new ArrayList<>();
-    	int iter = 1;
-    	while (propertyVars.size() > 0 && nonPropertyVars.size() > 0) {
-    		final String aSpec = "A" + iter;
-    		final String bSpec = "B" + iter;
-    		decompose(aSpec, propertyVars, tla, cfg, true);
-        	decompose(bSpec, nonPropertyVars, tla, cfg, false);
-        	components.add(aSpec);
-        	
-        	allVars = stateVarsInSpec(bSpec, "no_invs.cfg");
-        	propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg");
-        	nonPropertyVars = Utils.setMinus(allVars, propertyVars);
-        	tla = bSpec;
-        	cfg = "no_invs.cfg";
-        	++iter;
-    	}
-    	
-    	components.add("B" + (iter-1));
-    	return components;
     }
     
     public static void toFSP(String[] args) {
@@ -192,31 +145,7 @@ public class Composition {
     public static void decompose(String[] args) {
     	String tla = args[1];
     	String cfg = args[2];
-    	
-    	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC("init");
-    	tlc.initialize(tla, cfg);
-    	
-    	// get state vars to decompose with
-    	Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
-    	Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
-    	Set<String> allVars = stateVarsInSpec(tla, cfg);
-    	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
-    	
-    	int iter = 1;
-    	while (propertyVars.size() > 0 && nonPropertyVars.size() > 0) {
-    		final String aSpec = "A" + iter;
-    		final String bSpec = "B" + iter;
-    		decompose(aSpec, propertyVars, tla, cfg, true);
-        	decompose(bSpec, nonPropertyVars, tla, cfg, false);
-        	
-        	allVars = stateVarsInSpec(bSpec, "no_invs.cfg");
-        	propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg");
-        	nonPropertyVars = Utils.setMinus(allVars, propertyVars);
-        	tla = bSpec;
-        	cfg = "no_invs.cfg";
-        	++iter;
-    	}
+    	decompAll(tla, cfg);
     }
     
     private static Set<String> stateVarsInSpec(final String tla, final String cfg) {
@@ -236,6 +165,41 @@ public class Composition {
         		.stream()
         		.map(a -> a.getName().toString())
         		.collect(Collectors.toSet());
+    }
+    
+    
+    /* Decomp helpers */
+    
+    private static List<String> decompAll(String tla, String cfg) {
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	
+    	// get state vars to decompose with
+    	Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
+    	Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
+    	Set<String> allVars = stateVarsInSpec(tla, cfg);
+    	Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+    	
+    	List<String> components = new ArrayList<>();
+    	int iter = 1;
+    	while (propertyVars.size() > 0 && nonPropertyVars.size() > 0) {
+    		final String aSpec = "A" + iter;
+    		final String bSpec = "B" + iter;
+    		decompose(aSpec, propertyVars, tla, cfg, true);
+        	decompose(bSpec, nonPropertyVars, tla, cfg, false);
+        	components.add(aSpec);
+        	
+        	allVars = stateVarsInSpec(bSpec, "no_invs.cfg");
+        	propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg");
+        	nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+        	tla = bSpec;
+        	cfg = "no_invs.cfg";
+        	++iter;
+    	}
+    	
+    	components.add("B" + (iter-1));
+    	return components;
     }
     
     /**
@@ -374,6 +338,22 @@ public class Composition {
         final String file = fileName;
         //final String file = outputLoc + fileName;
         Utils.writeFile(file, builder.toString());
+    }
+    
+    private static DetLTS<Integer, String> fspToDFA(final String fsp) {
+    	StringLTSOutput ltsOutput = new StringLTSOutput();
+    	LTSCompiler ltsCompiler = new LTSCompiler(new StringLTSInput(fsp), ltsOutput, System.getProperty("user.dir"));
+    	CompositeState lts = ltsCompiler.compile("DEFAULT");
+    	lts.compose(ltsOutput);
+    	return LTSACall.INSTANCE.toDetLTS(lts, false);
+    }
+    
+    private static LTS<Integer, String> fspToNFA(final String fsp) {
+    	StringLTSOutput ltsOutput = new StringLTSOutput();
+    	LTSCompiler ltsCompiler = new LTSCompiler(new StringLTSInput(fsp), ltsOutput, System.getProperty("user.dir"));
+    	CompositeState lts = ltsCompiler.compile("DEFAULT");
+    	lts.compose(ltsOutput);
+    	return LTSACall.INSTANCE.toLTS(lts, false);
     }
 
     // code for accessing the init state!
