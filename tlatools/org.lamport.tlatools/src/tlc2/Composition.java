@@ -43,10 +43,11 @@ public class Composition {
     	final String propComponent = components.get(0);
     	TLC tlcProp = new TLC();
     	timer.reset();
-    	TLC.runTLC(propComponent, cfg, tlcProp);
+    	TLC.runTLCNoBadStates(propComponent, cfg, tlcProp);
     	System.out.println("prop runTLC: " + timer.timeElapsed());
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
+    	System.out.println("KS size: " + propKS.size());
     	timer.reset();
     	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
     	System.out.println("prop WA gen: " + timer.timeElapsed());
@@ -77,6 +78,7 @@ public class Composition {
         	TLC.runTLC(comp, noInvsCfg, tlcComp);
         	System.out.println("runTLC: " + timer.timeElapsed());
         	Utils.assertNotNull(tlcComp.getKripke(), "Error running TLC on a component");
+        	System.out.println("KS size: " + tlcComp.getKripke().size());
         	timer.reset();
         	LTS<Integer, String> ltsComp = tlcComp.getKripke().toNFA();
     		System.out.println("converting KS to NFA: " + timer.timeElapsed());
@@ -125,19 +127,21 @@ public class Composition {
     	// temporary hack
     	final String noInvsCfg = "no_invs.cfg";
     	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
-    	
+
     	final List<String> components = decompAll(tla, cfg);
     	Utils.assertTrue(components.size() > 0, "Decomposition returned no components");
+    	System.out.println("# components: " + components.size());
     	
-    	timer.reset();
     	final String propComponent = components.get(0);
     	TLC tlcProp = new TLC();
-    	TLC.runTLC(propComponent, cfg, tlcProp);
+    	timer.reset();
+    	TLC.runTLCNoBadStates(propComponent, cfg, tlcProp);
+    	System.out.println("prop runTLC: " + timer.timeElapsed());
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
+    	timer.reset();
     	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionNoSinkDFA();
-    	System.out.println("prop runTLC and WA gen: " + timer.timeElapsed());
-    	System.out.println("# components: " + components.size());
+    	System.out.println("prop WA gen: " + timer.timeElapsed());
     	
     	if (ltsProp.propertyIsTrue()) {
     		System.out.println("Property satisfied!");
@@ -164,22 +168,37 @@ public class Composition {
         	LTS<Integer, String> ltsComp = tlcComp.getKripke().toNFA();
     		System.out.println("converting KS to NFA: " + timer.timeElapsed());
     		
-    		timer.reset();
-    		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
-    		ltsProp = waGen.generate(true);
-    		System.out.println("WA gen: " + timer.timeElapsed());
-        		
-    		if (ltsProp.propertyIsTrue()) {
-        		System.out.println("Property satisfied!");
-        		return;
+    		// middle iterations
+    		if (i+1 < components.size()) {
+        		timer.reset();
+        		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
+        		ltsProp = waGen.generate(true);
+        		System.out.println("WA gen: " + timer.timeElapsed());
+            		
+        		if (ltsProp.propertyIsTrue()) {
+        			System.out.println("WA is true.");
+            		System.out.println("Property satisfied!");
+            		return;
+        		}
+        		else if (ltsProp.propertyIsFalse()) {
+        			System.out.println("WA is false.");
+        			System.out.println("Property may be violated.");
+            		//FSPWriter.INSTANCE.write(System.out, ltsProp);
+        			return;
+        		}
     		}
-    		else if (ltsProp.propertyIsFalse()) {
-    			System.out.println("Property may be violated.");
-        		//FSPWriter.INSTANCE.write(System.out, ltsProp);
-    			return;
+			// for the final iteration, we use model checking since it's faster than
+	    	// generating the WA
+    		else {
+        		timer.reset();
+    			if (LtsUtils.INSTANCE.satisfiesNoCopy(ltsComp, ltsProp)) {
+            		System.out.println("Final MC: " + timer.timeElapsed());
+            		System.out.println("Property satisfied!");
+            		return;
+    			}
+        		System.out.println("Final MC: " + timer.timeElapsed());
     		}
     	}
-		//System.out.println("End of loop.");
 		System.out.println("Property may be violated.");
     }
     
@@ -379,6 +398,8 @@ public class Composition {
 			n.removeChildrenWithName(removeVars);
 			n.removeUnusedLetDefs();
 		}
+		
+		// .filter(d -> !d.emptyNode())
 		
 		// remove any actions that become empty from removing the vars in removeVars
 		final Set<OpDefNode> actionNodesToRemove = moduleNodes

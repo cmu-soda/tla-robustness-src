@@ -177,6 +177,20 @@ public abstract class SemanticNode
   }
   
   /**
+   * Returns whether this node is empty. Essentially, this node is a syntax error
+   * or garbage and can be removed.
+   * @return
+   */
+  public boolean emptyNode() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.emptyNode());
+  }
+  
+  /**
    * Returns the subset of state vars in <notInVars> that occur in expressions that the
    * vars in <vars> also occur in. The return value need not contain the vars in <vars>.
    * @param notInVars

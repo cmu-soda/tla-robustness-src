@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 
+import tlc2.TLC;
 import tlc2.TLCGlobals;
 import tlc2.output.EC;
 import tlc2.output.MP;
@@ -506,7 +507,11 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				// The state is inModel, unseen and neither invariants
 				// nor implied actions are violated. It is thus eligible
 				// for further processing by other workers.
-				this.squeue.sEnqueue(succState);
+				final boolean isBadState = this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState);
+				final boolean isGoodState = !isBadState;
+				if (isGoodState || TLC.modelCheckBadStates()) {
+					this.squeue.sEnqueue(succState);
+				}
 			}
 			return this;
 		} catch (Exception e) {

@@ -132,6 +132,14 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
+  public boolean emptyNode() {
+	  if (getBody() == null) {
+		  return true;
+	  }
+	  return getBody().emptyNode();
+  }
+  
+  @Override
   protected String toTLA(boolean pretty) {
 	  pretty = true; // this seems to work better
 	  final boolean hasDefs = this.opDefs.length > 0;

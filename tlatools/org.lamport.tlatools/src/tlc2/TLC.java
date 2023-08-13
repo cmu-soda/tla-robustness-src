@@ -90,6 +90,8 @@ public class TLC {
 
 	private static TLC currentInstance = null;
 	
+	private static boolean modelCheckBadStates = true;
+	
 	public static String getTlcKey() {
 		if (currentInstance == null) {
 			throw new RuntimeException("TLC.currentInstance is null!");
@@ -369,6 +371,12 @@ public class TLC {
         TLC.currentInstance = null;
     }
     
+    public static void runTLCNoBadStates(final String tla, final String cfg, TLC tlc) {
+    	TLC.modelCheckBadStates = false;
+    	runTLC(tla, cfg, tlc, true);
+    	TLC.modelCheckBadStates = true;
+    }
+    
     public static void runTLC(final String tla, final String cfg, TLC tlc) {
     	runTLC(tla, cfg, tlc, true);
     }
@@ -427,6 +435,10 @@ public class TLC {
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
+    }
+    
+    public static boolean modelCheckBadStates() {
+    	return TLC.modelCheckBadStates;
     }
     
     public Set<String> stateVarsInSpec() {

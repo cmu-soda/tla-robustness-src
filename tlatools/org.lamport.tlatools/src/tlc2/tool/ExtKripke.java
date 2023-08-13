@@ -184,6 +184,10 @@ public class ExtKripke {
 
 	// post-processing
 
+	public int size() {
+		return this.allStates.size();
+	}
+
 	public boolean isEmpty() {
 		return this.allStates.isEmpty() || this.initStates.isEmpty();
 	}

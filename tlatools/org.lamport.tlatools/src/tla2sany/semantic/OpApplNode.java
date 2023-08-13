@@ -458,6 +458,28 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public boolean emptyNode() {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  //if (isInfixOp(opKey)) {
+	  if (opKey.equals("$ConjList")) {
+		  if (getChildren() == null) {
+			  return true;
+		  }
+		  return Utils.toArrayList(getChildren())
+				  .stream()
+				  .allMatch(c -> c.emptyNode());
+	  }
+	  
+	  if (getChildren() == null || getChildren().length == 0) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.emptyNode());
+  }
+  
+  @Override
   public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars) {
 	  if (isExprNode(this.getOperator().getName().toString())) {
 		  if (this.containsStateVars(vars)) {
