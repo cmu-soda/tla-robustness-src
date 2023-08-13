@@ -41,6 +41,11 @@ public class Main {
         	Composition.decompVerify(args);
     	}
     	
+    	// invoke naive version of the Decomposition Verify algorithm to perform MC
+    	else if (args.length == 3 && args[0].equals("--verif-unif")) {
+        	Composition.decompVerifyUniform(args);
+    	}
+    	
     	// convert a TLA+ spec to FSP
     	else if (args.length == 3 && args[0].equals("--to-fsp")) {
     		Composition.toFSP(args);
@@ -48,7 +53,7 @@ public class Main {
     	
     	// generate the weakest assumption for the spec
     	else if (args.length == 3 && args[0].equals("--wa")) {
-    		Composition.weakestAssumption(args);
+    		Composition.weakestAssumptionNoSink(args);
     	}
     	
     	// compose two TLA+ specs

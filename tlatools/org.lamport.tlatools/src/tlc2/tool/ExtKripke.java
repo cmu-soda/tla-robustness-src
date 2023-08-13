@@ -12,9 +12,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import cmu.isr.assumption.WAHelper;
 import cmu.isr.tolerance.utils.LtsUtils;
 import cmu.isr.ts.DetLTS;
 import cmu.isr.ts.LTS;
+import cmu.isr.ts.MutableDetLTS;
 import cmu.isr.ts.lts.CompactLTS;
 import net.automatalib.automata.fsa.impl.compact.CompactDFA;
 import net.automatalib.automata.fsa.impl.compact.CompactNFA;
@@ -45,6 +47,7 @@ public class ExtKripke {
     private Map<Pair<EKState,EKState>, Set<String>> deltaActionsWithParams;
     private Set<EKState> envStates;
     private Set<String> allActions;
+    private Map<EKState, Set<Pair<String,EKState>>> outgoingTransitionsPerState;
     
 	private static final String UNCHANGED = "UNCHANGED";
 	private static final String INSTANCE = "INSTANCE";
@@ -65,6 +68,7 @@ public class ExtKripke {
         this.deltaActionsWithParams = new HashMap<>();
     	this.envStates = new HashSet<>();
     	this.allActions = new HashSet<>();
+    	this.outgoingTransitionsPerState = new HashMap<>();
     }
 
     public ExtKripke(final ExtKripke src) {
@@ -76,6 +80,7 @@ public class ExtKripke {
     	this.deltaActionsWithParams = new HashMap<>(src.deltaActionsWithParams);
     	this.envStates = new HashSet<>(src.envStates);
     	this.allActions = new HashSet<>(src.allActions);
+    	this.outgoingTransitionsPerState = new HashMap<>(src.outgoingTransitionsPerState);
     }
 
 	// assumes that the state space of srcClosed is more refined than the state space of srcM.
@@ -168,6 +173,12 @@ public class ExtKripke {
     	}
     	deltaActionsWithParams.get(transition).add(actNameWParams);
     	allActions.add(actNameWParams);
+    	
+    	// also record transitions keyed by the src state
+    	if (!outgoingTransitionsPerState.containsKey(srcEks)) {
+    		outgoingTransitionsPerState.put(srcEks, new HashSet<>());
+    	}
+    	outgoingTransitionsPerState.get(srcEks).add(new Pair<>(actNameWParams, dstEks));
     }
 
 
@@ -187,6 +198,10 @@ public class ExtKripke {
 
 	public boolean isBadState(final EKState s) {
 		return this.badStates.contains(s);
+	}
+
+	public boolean isGoodState(final EKState s) {
+		return !this.badStates.contains(s);
 	}
 
 	public ExtKripke createErrPre() {
@@ -341,24 +356,17 @@ public class ExtKripke {
     }
 
 	private Set<EKState> succ(EKState s) {
-		Set<EKState> succStates = new HashSet<>();
-		for (Pair<EKState,EKState> t : this.delta) {
-			if (s.equals(t.first)) {
-				succStates.add(t.second);
-			}
-		}
-		return succStates;
+		return this.outgoingTransitionsPerState.get(s)
+				.stream()
+				.map(p -> p.second)
+				.collect(Collectors.toSet());
 	}
     
     private Set<String> enabledActions(EKState s) {
-    	Set<String> enabled = new HashSet<>();
-    	for (Pair<EKState,EKState> t : this.delta) {
-    		if (s.equals(t.first)) {
-    			final String a = this.deltaActions.get(t);
-    			enabled.add(a);
-    		}
-    	}
-    	return enabled;
+		return this.outgoingTransitionsPerState.get(s)
+				.stream()
+				.map(p -> p.first)
+				.collect(Collectors.toSet());
     }
     
     /**
@@ -367,16 +375,7 @@ public class ExtKripke {
      * @return
      */
     private Set<Pair<String, EKState>> outgoingTransitions(EKState s) {
-    	Set<Pair<String, EKState>> outgoing = new HashSet<>();
-    	for (Pair<EKState,EKState> t : this.delta) {
-    		if (s.equals(t.first)) {
-    			for (final String a : this.deltaActionsWithParams.get(t)) {
-        			final Pair<String, EKState> p = new Pair<String, EKState>(a, t.second);
-        			outgoing.add(p);
-    			}
-    		}
-    	}
-    	return outgoing;
+    	return outgoingTransitionsPerState.get(s);
     }
 
 	private Set<EKState> notAlwaysNotPhiStates() {
@@ -603,7 +602,7 @@ public class ExtKripke {
     	return s.toLowerCase();
     }
     
-    public String weakestAssumption() {
+    public String weakestAssumptionNoSink() {
     	final Set<EKState> goodStates = Utils.setMinus(this.allStates, this.badStates);
     	
     	// assign a name to each state
@@ -702,9 +701,10 @@ public class ExtKripke {
     	return fsp;
     }
     
-    public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+    public DetLTS<Integer, String> toWeakestAssumptionNoSinkDFA() {
     	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
     	
+    	// add all states and track them in ekToLtsStates
     	Map<EKState, Integer> ekToLtsStates = new HashMap<>();
     	final Set<EKState> goodStates = Utils.setMinus(this.allStates, this.badStates);
     	for (final EKState ekState : goodStates) {
@@ -714,6 +714,7 @@ public class ExtKripke {
 			ekToLtsStates.put(ekState, ltsState);
     	}
     	
+    	// add all transitions
     	for (final Pair<EKState,EKState> tr : this.delta) {
     		final EKState ekSrc = tr.first;
     		final EKState ekDst = tr.second;
@@ -729,6 +730,53 @@ public class ExtKripke {
     	
     	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
     	return LtsUtils.INSTANCE.toDeterministic(compactLTS);
+    }
+    
+    public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+    	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
+    	
+    	// add all states and track them in ekToLtsStates
+    	Map<EKState, Integer> ekToLtsStates = new HashMap<>();
+    	final Set<EKState> goodStates = Utils.setMinus(this.allStates, this.badStates);
+    	for (final EKState ekState : goodStates) {
+    		final boolean isInitState = this.initStates.contains(ekState);
+    		final boolean isGoodState = true;
+			final int ltsState = isInitState ? compactNFA.addInitialState(isGoodState) : compactNFA.addState(isGoodState);
+			ekToLtsStates.put(ekState, ltsState);
+    	}
+    	
+    	// add all transitions
+    	for (final Pair<EKState,EKState> tr : this.delta) {
+    		final EKState ekSrc = tr.first;
+    		final EKState ekDst = tr.second;
+    		if (ekToLtsStates.containsKey(ekSrc) && ekToLtsStates.containsKey(ekDst)) {
+        		final int src = ekToLtsStates.get(tr.first);
+        		final int dst = ekToLtsStates.get(tr.second);
+        		final Set<String> acts = this.deltaActionsWithParams.get(tr);
+        		for (final String a : acts) {
+        			compactNFA.addTransition(src, a, dst);
+        		}
+    		}
+    	}
+    	
+    	// add all error states
+    	final Integer ltsBadState = compactNFA.addState(false);
+    	for (final EKState ekSrc : goodStates) {
+    		final Integer ltsSrc = ekToLtsStates.get(ekSrc);
+    		final Set<Pair<String,EKState>> badTransitions = outgoingTransitionsPerState.get(ekSrc)
+    				.stream()
+    				.filter(p -> isBadState(p.second))
+    				.collect(Collectors.toSet());
+    		for (Pair<String,EKState> p : badTransitions) {
+    			final String act = p.first;
+    			compactNFA.addTransition(ltsSrc, act, ltsBadState);
+    		}
+    	}
+    	
+    	// add theta and all transitions associated with it
+    	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
+    	MutableDetLTS<Integer,String> detLTS = LtsUtils.INSTANCE.toDeterministic(compactLTS);
+    	return WAHelper.INSTANCE.addTheta(detLTS);
     }
     
     public LTS<Integer, String> toNFA() {

@@ -38,6 +38,96 @@ public class Composition {
     	
     	final List<String> components = decompAll(tla, cfg);
     	Utils.assertTrue(components.size() > 0, "Decomposition returned no components");
+    	System.out.println("# components: " + components.size());
+    	
+    	final String propComponent = components.get(0);
+    	TLC tlcProp = new TLC();
+    	timer.reset();
+    	TLC.runTLC(propComponent, cfg, tlcProp);
+    	System.out.println("prop runTLC: " + timer.timeElapsed());
+    	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
+    	final ExtKripke propKS = tlcProp.getKripke();
+    	timer.reset();
+    	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
+    	System.out.println("prop WA gen: " + timer.timeElapsed());
+    	
+    	if (ltsProp.propertyIsTrue()) {
+			System.out.println("WA is true.");
+    		System.out.println("Property satisfied!");
+    		return;
+		}
+		else if (ltsProp.propertyIsFalse()) {
+			System.out.println("WA is false.");
+			System.out.println("Property may be violated.");
+    		//FSPWriter.INSTANCE.write(System.out, ltsProp);
+			return;
+		}
+    	
+    	// at this point, ltsProp /is/ the WA of the 1st component. therefore, there
+    	// is no need to look at the 1st component in the following loop.
+    	
+    	for (int i = 1; i < components.size(); ++i) {
+    		final int iter = i + 1;
+    		final String comp = components.get(i);
+    		System.out.println();
+    		System.out.println("iter " + iter + ": " + comp);
+    		
+    		TLC tlcComp = new TLC();
+    		timer.reset();
+        	TLC.runTLC(comp, noInvsCfg, tlcComp);
+        	System.out.println("runTLC: " + timer.timeElapsed());
+        	Utils.assertNotNull(tlcComp.getKripke(), "Error running TLC on a component");
+        	timer.reset();
+        	LTS<Integer, String> ltsComp = tlcComp.getKripke().toNFA();
+    		System.out.println("converting KS to NFA: " + timer.timeElapsed());
+    		
+    		// middle iterations
+    		if (i+1 < components.size()) {
+        		timer.reset();
+        		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
+        		ltsProp = waGen.generate(true);
+        		System.out.println("WA gen: " + timer.timeElapsed());
+            		
+        		if (ltsProp.propertyIsTrue()) {
+        			System.out.println("WA is true.");
+            		System.out.println("Property satisfied!");
+            		return;
+        		}
+        		else if (ltsProp.propertyIsFalse()) {
+        			System.out.println("WA is false.");
+        			System.out.println("Property may be violated.");
+            		//FSPWriter.INSTANCE.write(System.out, ltsProp);
+        			return;
+        		}
+    		}
+			// for the final iteration, we use model checking since it's faster than
+	    	// generating the WA
+    		else {
+        		timer.reset();
+    			if (LtsUtils.INSTANCE.satisfiesNoCopy(ltsComp, ltsProp)) {
+            		System.out.println("Final MC: " + timer.timeElapsed());
+            		System.out.println("Property satisfied!");
+            		return;
+    			}
+        		System.out.println("Final MC: " + timer.timeElapsed());
+    		}
+    	}
+		System.out.println("Property may be violated.");
+    }
+    
+    public static void decompVerifyUniform(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
+    	
+    	PerfTimer timer = new PerfTimer();
+    	SymbolTable.init();
+    	
+    	// temporary hack
+    	final String noInvsCfg = "no_invs.cfg";
+    	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
+    	
+    	final List<String> components = decompAll(tla, cfg);
+    	Utils.assertTrue(components.size() > 0, "Decomposition returned no components");
     	
     	timer.reset();
     	final String propComponent = components.get(0);
@@ -45,7 +135,7 @@ public class Composition {
     	TLC.runTLC(propComponent, cfg, tlcProp);
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
-    	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
+    	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionNoSinkDFA();
     	System.out.println("prop runTLC and WA gen: " + timer.timeElapsed());
     	System.out.println("# components: " + components.size());
     	
@@ -117,7 +207,7 @@ public class Composition {
     	//System.err.println("to-fsp write time: " + (writeEnd - writeStart));
     }
     
-    public static void weakestAssumption(String[] args) {
+    public static void weakestAssumptionNoSink(String[] args) {
     	final String tla = args[1];
     	final String cfg = args[2];
     	
@@ -130,7 +220,7 @@ public class Composition {
     		System.err.println("The spec is malformed, or the file does not exist.");
     		return;
     	}
-    	System.out.println(tlc.getKripke().weakestAssumption());
+    	System.out.println(tlc.getKripke().weakestAssumptionNoSink());
     }
     
     public static String composeSpecs(String[] args) {
