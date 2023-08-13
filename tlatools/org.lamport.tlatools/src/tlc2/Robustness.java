@@ -56,7 +56,7 @@ public class Robustness {
     	
     	// initialize and run TLC
     	TLC tlc = new TLC("cmp");
-    	TLC.runTLC(tla, cfg, tlc);
+    	tlc.modelCheck(tla, cfg);
     	
     	// error checking
     	if (tlc.getKripke() == null) {
@@ -83,8 +83,8 @@ public class Robustness {
     	// run TLC for M and the closed system
     	TLC tlcM = new TLC("M");
     	TLC tlcClosed = new TLC("closed");
-    	TLC.runTLC(tlaM, cfgM, tlcM);
-    	TLC.runTLC(tlaClosed, cfgClosed, tlcClosed);
+    	tlcM.modelCheck(tlaM, cfgM);
+    	tlcClosed.modelCheck(tlaClosed, cfgClosed);
     	final ExtKripke kripkeM = tlcM.getKripke();
     	final ExtKripke kripkeClosed = tlcClosed.getKripke();
     	
@@ -118,8 +118,8 @@ public class Robustness {
     	// initialize and run TLC
     	TLC tlc1 = new TLC("spec1");
     	TLC tlc2 = new TLC("spec2");
-    	TLC.runTLC(tla1, cfg1, tlc1);
-    	TLC.runTLC(tla2, cfg2, tlc2);
+    	tlc1.modelCheck(tla1, cfg1);
+    	tlc2.modelCheck(tla2, cfg2);
 
     	// error checking
     	Utils.assertNotNull(tlc1.getKripke(), "The first spec is malformed.");
@@ -451,13 +451,13 @@ public class Robustness {
     	// that there is a TypeOK in tlaFile
         final String cfgName = "JustTypeOK";
         final String cfgFile = stateSpaceConfig(cfgName, outputLoc);
-    	TLC.runTLC(tlaFile, cfgFile, tlcTypeOK);
+        tlcTypeOK.modelCheck(tlaFile, cfgFile);
     }
     
     private static void runTLCExtractStateSpace(final TLC tlc1, final TLC tlc2, final String outputLoc, TLC tlcTypeOK) {
         final String specName = "CombinedTypeOK";
         final String tlaFile = stateSpaceTLA(specName, tlc1, tlc2, outputLoc);
         final String cfgFile = stateSpaceConfig(specName, outputLoc);
-        TLC.runTLC(tlaFile, cfgFile, tlcTypeOK);
+        tlcTypeOK.modelCheck(tlaFile, cfgFile);
     }
 }

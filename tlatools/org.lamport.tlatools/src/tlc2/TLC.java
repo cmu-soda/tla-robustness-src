@@ -90,7 +90,7 @@ public class TLC {
 
 	private static TLC currentInstance = null;
 	
-	private static boolean modelCheckBadStates = true;
+	private static boolean modelCheckOnlyGoodStates = false;
 	
 	public static String getTlcKey() {
 		if (currentInstance == null) {
@@ -371,21 +371,21 @@ public class TLC {
         TLC.currentInstance = null;
     }
     
-    public static void runTLCNoBadStates(final String tla, final String cfg, TLC tlc) {
-    	TLC.modelCheckBadStates = false;
-    	runTLC(tla, cfg, tlc, true);
-    	TLC.modelCheckBadStates = true;
+    public void modelCheckOnlyGoodStates(final String tla, final String cfg) {
+    	TLC.modelCheckOnlyGoodStates = true;
+    	modelCheck(tla, cfg, true);
+    	TLC.modelCheckOnlyGoodStates = false;
     }
     
-    public static void runTLC(final String tla, final String cfg, TLC tlc) {
-    	runTLC(tla, cfg, tlc, true);
+    public void modelCheck(final String tla, final String cfg) {
+    	modelCheck(tla, cfg, true);
     }
     
-    public static void runTLC(final String tla, final String cfg, TLC tlc, boolean supressTLCOutput) {
+    public void modelCheck(final String tla, final String cfg, boolean supressTLCOutput) {
     	if (TLC.currentInstance != null) {
     		throw new RuntimeException("Cannot run multiple instances of TLC at once!");
     	}
-    	TLC.currentInstance = tlc;
+    	TLC.currentInstance = this;
     	
     	final String[] args = new String[] {"-deadlock", "-config", cfg, tla};
     	PrintStream origPrintStream = System.out;
@@ -394,7 +394,7 @@ public class TLC {
     	}
 
         // Try to parse parameters.
-        if (!tlc.handleParameters(args)) {
+        if (!this.handleParameters(args)) {
             // This is a tool failure. We must exit with a non-zero exit
             // code or else we will mislead system tools and scripts into
             // thinking everything went smoothly.
@@ -405,7 +405,7 @@ public class TLC {
             System.exit(1);
         }
         
-        if (!tlc.checkEnvironment()) {
+        if (!this.checkEnvironment()) {
             System.exit(1);
         }
 
@@ -414,7 +414,7 @@ public class TLC {
 			// There was not spec file given, it instead exists in the
 			// .jar file being executed. So we need to use a special file
 			// resolver to parse it.
-			tlc.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
+			this.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
 		} else {
 			// The user passed us a spec file directly. To ensure we can
 			// recover it during semantic parsing, we must include its
@@ -422,23 +422,23 @@ public class TLC {
 			//
 			// If the spec file has no parent directory, use the "standard"
 			// library paths provided by SimpleFilenameToStream.
-			final String dir = FileUtil.parseDirname(tlc.getMainFile());
+			final String dir = FileUtil.parseDirname(this.getMainFile());
 			if (!dir.isEmpty()) {
-				tlc.setResolver(new SimpleFilenameToStream(dir));
+				this.setResolver(new SimpleFilenameToStream(dir));
 			} else {
-				tlc.setResolver(new SimpleFilenameToStream());
+				this.setResolver(new SimpleFilenameToStream());
 			}
 		}
 		
 		// Execute TLC.
-        final int errorCode = tlc.process();
+        final int errorCode = this.process();
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
     }
     
-    public static boolean modelCheckBadStates() {
-    	return TLC.modelCheckBadStates;
+    public static boolean checkBadStates() {
+    	return !TLC.modelCheckOnlyGoodStates;
     }
     
     public Set<String> stateVarsInSpec() {

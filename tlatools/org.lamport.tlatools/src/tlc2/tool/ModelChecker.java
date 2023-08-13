@@ -455,7 +455,7 @@ public class ModelChecker extends AbstractChecker
 						// nor implied actions are violated. It is thus eligible
 						// for further processing by other workers.
                     	final boolean isGoodState = !invariantViolationIan(tool, curState, succState);
-                    	if (isGoodState || TLC.modelCheckBadStates()) {
+                    	if (isGoodState || TLC.checkBadStates()) {
     						this.theStateQueue.sEnqueue(succState);
                     	}
                     }
@@ -1238,7 +1238,7 @@ public class ModelChecker extends AbstractChecker
 						}
 					}
 				}
-				if (isGoodState || TLC.modelCheckBadStates()) {
+				if (isGoodState || TLC.checkBadStates()) {
 					if (inModel) {
 						if (!seen) {
 							long fp = curState.fingerPrint();

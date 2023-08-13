@@ -43,7 +43,7 @@ public class Composition {
     	final String propComponent = components.get(0);
     	TLC tlcProp = new TLC();
     	timer.reset();
-    	TLC.runTLCNoBadStates(propComponent, cfg, tlcProp);
+    	tlcProp.modelCheckOnlyGoodStates(propComponent, cfg);
     	System.out.println("prop runTLC: " + timer.timeElapsed());
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
@@ -75,7 +75,7 @@ public class Composition {
     		
     		TLC tlcComp = new TLC();
     		timer.reset();
-        	TLC.runTLC(comp, noInvsCfg, tlcComp);
+        	tlcComp.modelCheck(comp, noInvsCfg);
         	System.out.println("runTLC: " + timer.timeElapsed());
         	Utils.assertNotNull(tlcComp.getKripke(), "Error running TLC on a component");
         	System.out.println("KS size: " + tlcComp.getKripke().size());
@@ -135,7 +135,7 @@ public class Composition {
     	final String propComponent = components.get(0);
     	TLC tlcProp = new TLC();
     	timer.reset();
-    	TLC.runTLCNoBadStates(propComponent, cfg, tlcProp);
+    	tlcProp.modelCheck(propComponent, cfg);
     	System.out.println("prop runTLC: " + timer.timeElapsed());
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
@@ -161,7 +161,7 @@ public class Composition {
     		
     		TLC tlcComp = new TLC();
     		timer.reset();
-        	TLC.runTLC(comp, noInvsCfg, tlcComp);
+    		tlcComp.modelCheck(comp, noInvsCfg);
         	System.out.println("runTLC: " + timer.timeElapsed());
         	Utils.assertNotNull(tlcComp.getKripke(), "Error running TLC on a component");
         	timer.reset();
@@ -210,7 +210,7 @@ public class Composition {
     	
     	// initialize and run TLC
     	TLC tlc = new TLC("tlc");
-    	TLC.runTLC(tla, cfg, tlc);
+    	tlc.modelCheck(tla, cfg);
     	
     	// error checking
     	if (tlc.getKripke() == null) {
@@ -232,7 +232,7 @@ public class Composition {
     	
     	// initialize and run TLC
     	TLC tlc = new TLC("tlc");
-    	TLC.runTLC(tla, cfg, tlc);
+    	tlc.modelCheck(tla, cfg);
     	
     	// error checking
     	if (tlc.getKripke() == null) {

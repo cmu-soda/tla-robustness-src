@@ -509,7 +509,7 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				// for further processing by other workers.
 				final boolean isBadState = this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState);
 				final boolean isGoodState = !isBadState;
-				if (isGoodState || TLC.modelCheckBadStates()) {
+				if (isGoodState || TLC.checkBadStates()) {
 					this.squeue.sEnqueue(succState);
 				}
 			}
