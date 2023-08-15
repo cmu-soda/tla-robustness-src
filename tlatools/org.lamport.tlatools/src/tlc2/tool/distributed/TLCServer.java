@@ -33,6 +33,7 @@ import model.InJarFilenameToStream;
 import model.ModelInJar;
 import tlc2.TLC;
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.MP;
 import tlc2.tool.EvalException;
@@ -866,6 +867,7 @@ public class TLCServer extends UnicastRemoteObject implements TLCServerRMI,
 		 * @see tlc2.tool.IStateFunctor#addElement(tlc2.tool.TLCState)
 		 */
 		public Object addElement(final TLCState curState) {
+			Utils.assertTrue(false, "We don't support this initialization method!");
 			if (e != null) {
 				return curState;
 			}

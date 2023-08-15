@@ -6,6 +6,7 @@ package tlc2.tool;
 import java.io.IOException;
 
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.StatePrinter;
 import tlc2.tool.fp.FPSet;
@@ -92,6 +93,7 @@ public abstract class CheckImpl extends ModelChecker {
    * depth as the depth.
    */
   public final void makeStateSpace(TLCState st, int depth) throws Exception {
+	Utils.assertTrue(false, "We don't support makeStateSpace");
     int depth1= this.trace.getLevel(st.uid) + depth;
     this.theStateQueue = new DiskStateQueue(this.metadir);
     this.theStateQueue.enqueue(st);

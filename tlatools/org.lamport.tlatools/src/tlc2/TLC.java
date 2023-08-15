@@ -28,8 +28,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import cmu.isr.assumption.WAHelper;
+import cmu.isr.tolerance.utils.LtsUtils;
+import cmu.isr.ts.DetLTS;
+import cmu.isr.ts.MutableDetLTS;
+import cmu.isr.ts.lts.CompactLTS;
 import model.InJarFilenameToStream;
 import model.ModelInJar;
+import net.automatalib.automata.fsa.impl.compact.CompactNFA;
+import net.automatalib.util.automata.builders.AutomatonBuilders;
+import net.automatalib.words.impl.Alphabets;
 import tla2sany.parser.SyntaxTreeNode;
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpApplNode;
@@ -45,6 +53,7 @@ import tlc2.tool.ITool;
 import tlc2.tool.ModelChecker;
 import tlc2.tool.Simulator;
 import tlc2.tool.SingleThreadedSimulator;
+import tlc2.tool.TLCState;
 import tlc2.tool.fp.FPSet;
 import tlc2.tool.fp.FPSetConfiguration;
 import tlc2.tool.fp.FPSetFactory;
@@ -91,6 +100,8 @@ public class TLC {
 	private static TLC currentInstance = null;
 	
 	private static boolean modelCheckOnlyGoodStates = false;
+	
+	private static DetLTS<Integer, String> ltsProp = null;
 	
 	public static String getTlcKey() {
 		if (currentInstance == null) {
@@ -170,7 +181,14 @@ public class TLC {
     /**
      * Kripke Structure representing the TLA+ model
      */
-    private ExtKripke kripke;
+    //private ExtKripke kripke;
+    
+    //private CompactNFA<String> compactNFA;
+    
+    //private Integer nfaErrState;
+    
+    private LTSBuilder ltsBuilder;
+    
     /**
      * Whether to run in model checking or simulation mode.
      * Defaults to model checking.
@@ -291,7 +309,11 @@ public class TLC {
      */
 	public TLC(final String key) {
 		tlcKey = key;
-		kripke = null;
+		//kripke = null;
+		//compactNFA = null;
+		//nfaErrState = null;
+		ltsBuilder = null;
+		
         welcomePrinted = false;
         
         runMode = RunMode.MODEL_CHECK;
@@ -315,9 +337,10 @@ public class TLC {
         params = new HashMap<>();
 	}
 	
+	/*
 	public ExtKripke getKripke() {
 		return this.kripke;
-	}
+	}*/
     
     public void initialize(final String tla, final String cfg) {
     	Utils.assertNull(TLC.currentInstance, "Cannot run multiple instances of TLC at once!");
@@ -371,6 +394,12 @@ public class TLC {
         TLC.currentInstance = null;
     }
     
+    public void modelCheckWithLTSProperty(final String tla, final String cfg, DetLTS<Integer, String> ltsProp) {
+    	TLC.ltsProp = ltsProp;
+    	modelCheckOnlyGoodStates(tla, cfg);
+    	TLC.ltsProp = null;
+    }
+    
     public void modelCheckOnlyGoodStates(final String tla, final String cfg) {
     	TLC.modelCheckOnlyGoodStates = true;
     	modelCheck(tla, cfg, true);
@@ -390,7 +419,7 @@ public class TLC {
     	final String[] args = new String[] {"-deadlock", "-config", cfg, tla};
     	PrintStream origPrintStream = System.out;
     	if (supressTLCOutput) {
-    		System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
+    		//System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
     	}
 
         // Try to parse parameters.
@@ -430,15 +459,28 @@ public class TLC {
 			}
 		}
 		
+		// create a compactNFA with an empty alphabet
+		//compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(new HashSet<String>())).create();
+		//nfaErrState = compactNFA.addState(false);
+		ltsBuilder = new LTSBuilder();
+		
 		// Execute TLC.
         final int errorCode = this.process();
         
-        System.setOut(origPrintStream);
+        //System.setOut(origPrintStream);
         TLC.currentInstance = null;
     }
     
     public static boolean checkBadStates() {
     	return !TLC.modelCheckOnlyGoodStates;
+    }
+    
+    public static boolean usesLTSProperty() {
+    	return ltsProp != null;
+    }
+    
+    public static DetLTS<Integer, String> getLTSProperty() {
+    	return ltsProp;
     }
     
     public Set<String> stateVarsInSpec() {
@@ -465,6 +507,15 @@ public class TLC {
     		}
     	}
     	return false;
+    }
+    
+    public LTSBuilder getLTSBuilder() {
+    	return this.ltsBuilder;
+    }
+    
+    public static LTSBuilder currentLTSBuilder() {
+    	Utils.assertNotNull(TLC.currentInstance, "No current instance!");
+    	return TLC.currentInstance.ltsBuilder;
     }
     
     /**
@@ -1338,7 +1389,7 @@ public class TLC {
 					modelCheckerMXWrapper = new ModelCheckerMXWrapper((ModelChecker) TLCGlobals.mainChecker, this);
 					result = TLCGlobals.mainChecker.modelCheck();
 					//idardik
-					kripke = TLCGlobals.mainChecker.getKripke();
+					//kripke = TLCGlobals.mainChecker.getKripke();
                 } else
                 {
 					TLCGlobals.mainChecker = new DFIDModelChecker(tool, metadir, stateWriter, deadlock, fromChkpt, startTime);

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -16,6 +17,7 @@ import java.util.regex.Pattern;
 
 import tla2sany.semantic.OpDeclNode;
 import tla2sany.semantic.SymbolNode;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.value.IValue;
 import tlc2.value.IValueInputStream;
@@ -25,6 +27,8 @@ import util.Assert;
 import util.UniqueString;
 
 public abstract class TLCState implements Cloneable, Serializable {
+  //public Integer ltsPropState = null;
+	
   public short workerId = Short.MAX_VALUE; // Must be set to a non-negative number. Valid worker ids \in [0,Short.MAX_VALUE] and start at 0.
   public static final int INIT_UID = -1;
   public long uid = INIT_UID;   // Must be set to a non-negative number

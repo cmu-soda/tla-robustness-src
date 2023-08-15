@@ -100,18 +100,21 @@ public class Utils {
 	
 	public static void assertTrue(final boolean condition, final String msg) {
 		if (!condition) {
+			System.err.println("Assertion failed with message: " + msg);
 			throw new RuntimeException(msg);
 		}
 	}
 	
 	public static void assertNull(final Object obj, final String msg) {
 		if (obj != null) {
+			System.err.println("Assertion failed with message: " + msg);
 			throw new RuntimeException("Null assertion failed with message: " + msg);
 		}
 	}
 	
 	public static void assertNotNull(final Object obj, final String msg) {
 		if (obj == null) {
+			System.err.println("Assertion failed with message: " + msg);
 			throw new RuntimeException("Not-null assertion failed with message: " + msg);
 		}
 	}

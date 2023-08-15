@@ -15,8 +15,10 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import tla2sany.semantic.OpDeclNode;
+import tlc2.LTSBuilder;
 import tlc2.TLC;
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.MP;
 import tlc2.tool.fp.FPSet;
@@ -49,7 +51,7 @@ import util.UniqueString;
 public class ModelChecker extends AbstractChecker
 {
 
-    public ExtKripke kripke = new ExtKripke();
+    //public ExtKripke kripke = new ExtKripke();
 
 	protected static final boolean coverage = TLCGlobals.isCoverageEnabled();
 	/**
@@ -100,9 +102,10 @@ public class ModelChecker extends AbstractChecker
         }
     }
     
+    /*
     public ExtKripke getKripke() {
     	return kripke;
-    }
+    }*/
     
     /**
      * The only used constructor of the TLA+ model checker
@@ -422,10 +425,47 @@ public class ModelChecker extends AbstractChecker
 				final int sz = nextStates.size();
 				worker.incrementStatesGenerated(sz);
 				deadLocked = deadLocked && (sz == 0);
+				
+				/*
+				// in LTS Property mode, check if there's a violation for the given action in the curState.
+				// we only need the curState and the action to check for an LTS Property.boolean ltsPropViolation = false;
+				boolean ltsPropViolation = false;
+				if (TLC.usesLTSProperty()) {
+					Utils.assertNotNull(curState.ltsPropState, "LTS Property state shouldn't be null!");
+					final Integer ltsCurState = curState.ltsPropState;
+					final String act = action.actionNameWithParams();
+					final boolean actionInLTSAlphabet = TLC.getLTSProperty().getInputAlphabet().contains(act);
+					
+					// determine property violations
+					if (actionInLTSAlphabet) {
+						// since we're using a property lts, if there no transition for this action it indicates
+						// that the action leads to a violation
+	                	ltsPropViolation = TLC.getLTSProperty().getTransition(ltsCurState, act) == null;
+					}
+					else {
+						// if the action is not in the LTS Property alphabet then it cannot be a violation
+						ltsPropViolation = false;
+					}
+					
+					// set the "LTS State" for each succ state
+					for (int j = 0; j < sz; ++j) {
+						TLCState succ = nextStates.elementAt(j);
+						// TODO we should assert that suc.ltsPropState == null
+						if (actionInLTSAlphabet) {
+							// set the "LTS State"
+							succ.ltsPropState = TLC.getLTSProperty().getTransition(ltsCurState, act);
+						}
+						else {
+							// set the "LTS State". it doesn't change for an action outside the alphabet.
+							succ.ltsPropState = ltsCurState;
+						}
+					}
+				}*/
 
                 for (int j = 0; j < sz; j++)
                 {
 					succState = nextStates.elementAt(j);
+					
 					// Check if succState is a legal state.
                     if (!tool.isGoodState(succState))
                     {
@@ -454,10 +494,16 @@ public class ModelChecker extends AbstractChecker
 						// The state is inModel, unseen and neither invariants
 						// nor implied actions are violated. It is thus eligible
 						// for further processing by other workers.
-                    	final boolean isGoodState = !invariantViolationIan(tool, curState, succState);
+    					final boolean stateBasedPropViolation = invariantViolationIan(tool, curState, succState);
+    					final boolean isGoodState = !stateBasedPropViolation;
+    					//final boolean isGoodState = TLC.usesLTSProperty() ? !ltsPropViolation : !stateBasedPropViolation;
+    					
                     	if (isGoodState || TLC.checkBadStates()) {
     						this.theStateQueue.sEnqueue(succState);
                     	}
+                    	
+                        LTSBuilder ltsBuilder = TLC.currentLTSBuilder();
+                        ltsBuilder.addState(succState);
                     }
 				}
 				// Must set state to null!!!
@@ -1172,8 +1218,11 @@ public class ModelChecker extends AbstractChecker
 		 */
 		public Object addElement(final TLCState curState) {
             // idardik begin
-            //System.out.println("Init:\n" + curState);
-            kripke.addInitState(curState);
+            TLC.currentLTSBuilder().addInitState(curState);
+            /*
+			if (TLC.usesLTSProperty()) {
+				curState.ltsPropState = TLC.getLTSProperty().getInitialState();
+			}*/
             // idardik end
 
 			if (Long.bitCount(numberOfInitialStates) == 1 && numberOfInitialStates > 1) {
@@ -1197,11 +1246,6 @@ public class ModelChecker extends AbstractChecker
 				// Check if the state is a legal state
 				if (!tool.isGoodState(curState)) {
 					isGoodState = false;
-					kripke.addBadState(curState);
-					//MP.printError(EC.TLC_INITIAL_STATE, new String[]{ "current state is not a legal state", curState.toString() });
-					//this.errState = curState;
-					//returnValue = EC.TLC_INITIAL_STATE;
-					//throw new InvariantViolatedException();
 				}
 				boolean inModel = tool.isInModel(curState);
 				boolean seen = false;
@@ -1218,10 +1262,6 @@ public class ModelChecker extends AbstractChecker
 									new String[] { tool.getInvNames()[j].toString(), tool.evalAlias(curState, curState).toString() });
 							if (!TLCGlobals.continuation) {
 								isGoodState = false;
-								kripke.addBadState(curState);
-								//this.errState = curState;
-								//returnValue = EC.TLC_INVARIANT_VIOLATED_INITIAL;
-								//throw new InvariantViolatedException();
 							}
 						}
 					}
@@ -1229,12 +1269,6 @@ public class ModelChecker extends AbstractChecker
 						if (!tool.isValid(tool.getImpliedInits()[j], curState)) {
 							// We get here because of implied-inits violation:
 							isGoodState = false;
-							kripke.addBadState(curState);
-							/*MP.printError(EC.TLC_PROPERTY_VIOLATED_INITIAL,
-									new String[] { tool.getImpliedInitNames()[j], tool.evalAlias(curState, curState).toString() });
-							this.errState = curState;
-							returnValue = EC.TLC_PROPERTY_VIOLATED_INITIAL;
-							throw new InvariantViolatedException();*/
 						}
 					}
 				}

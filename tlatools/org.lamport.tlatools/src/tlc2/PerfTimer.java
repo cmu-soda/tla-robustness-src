@@ -11,7 +11,8 @@ public class PerfTimer {
 		this.startTime = System.currentTimeMillis();
 	}
 	
-	public long timeElapsed() {
-		return System.currentTimeMillis() - this.startTime;
+	public String timeElapsed() {
+		final long elapsed = System.currentTimeMillis() - this.startTime;
+		return elapsed + "ms";
 	}
 }

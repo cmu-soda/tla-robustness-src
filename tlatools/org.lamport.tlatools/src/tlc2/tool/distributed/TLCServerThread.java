@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.MP;
 import tlc2.tool.TLCState;
@@ -150,6 +151,7 @@ public class TLCServerThread extends IdThread {
 	 * state queue.
 	 */
 	public void run() {
+		Utils.assertTrue(false, "We don't support TLCServerThread::run!");
 		TLCGlobals.incNumWorkers();
 		TLCStateVec[] newStates = null;
 		LongVec[] newFps = null;

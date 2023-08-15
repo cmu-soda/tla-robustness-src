@@ -12,8 +12,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 
+import org.checkerframework.common.returnsreceiver.qual.This;
+
+import cmu.isr.ts.DetLTS;
+import tlc2.LTSBuilder;
 import tlc2.TLC;
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.MP;
 import tlc2.tool.fp.FPSet;
@@ -120,18 +125,55 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				
 				// idardik start
                 // find all transitions from curState
-				String src = stripNewline(curState.toString());
                 Action[] actions = this.tlc.tool.getActions();
                 for (int i = 0; i < actions.length; ++i) {
-                	Action act = actions[i];
-                    //System.out.println("Act: " + act.getName());
-                	StateVec succ = this.tool.getNextStates(act, curState);
+                	Action action = actions[i];
+                	StateVec succ = this.tool.getNextStates(action, curState);
                 	for (int j = 0; j < succ.size(); ++j) {
-                		//String dst = stripNewline(succ.elementAt(j).toString());
-                		//String transition = "(" + src + ", " + dst + ")";
-                		//System.out.println(transition);
                         TLCState nextState = succ.elementAt(j);
-                        this.tlc.kripke.addTransition(act, curState, nextState);
+    					boolean isGoodState = true;
+                    	final boolean stateBasedPropViolation = this.doNextCheckInvariants(curState, nextState) || this.doCheckImpliedOneState(nextState);
+                    	isGoodState = !stateBasedPropViolation;
+                        
+    					/*
+                        // when dealing with an LTS property, there's enough info here to tell
+                        // whether the state is good or bad
+                        if (TLC.usesLTSProperty()) {
+        					Utils.assertNotNull(curState.ltsPropState, "LTS Property state shouldn't be null!");
+        					final Integer ltsCurState = curState.ltsPropState;
+        					final String act = action.actionNameWithParams();
+        					
+        					final boolean actionInLTSAlphabet = TLC.getLTSProperty().getInputAlphabet().contains(act);
+        					if (actionInLTSAlphabet) {
+            					// since we're using a property lts, if there no transition for this action it indicates
+            					// that the action leads to a violation
+            					final boolean ltsPropViolation = TLC.getLTSProperty().getTransition(ltsCurState, act) == null;
+            					isGoodState = !ltsPropViolation;
+            					
+            					// set the "LTS State"
+            					nextState.ltsPropState = TLC.getLTSProperty().getTransition(ltsCurState, act);
+        					}
+        					else {
+        						// if the action is not in the LTS Property alphabet then it cannot be a violation
+        						isGoodState = true;
+
+            					// set the "LTS State". it doesn't change for an action outside the alphabet.
+            					nextState.ltsPropState = ltsCurState;
+        					}
+                        }
+                        else {
+                        	final boolean stateBasedPropViolation = this.doNextCheckInvariants(curState, nextState) || this.doCheckImpliedOneState(nextState);
+                        	isGoodState = !stateBasedPropViolation;
+                        }*/
+                        
+                        LTSBuilder ltsBuilder = TLC.currentLTSBuilder();
+                        ltsBuilder.addState(nextState);
+                        if (isGoodState) {
+                        	ltsBuilder.addTransition(curState, action, nextState);
+        				}
+        				else {
+        					ltsBuilder.addTransitionToErr(curState, action);
+        				}
                 	}
                 }
                 // idardik end
@@ -449,13 +491,40 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 		this.statesGenerated++;
 		
 		try {
+			/*
+			// in LTS Property mode, check if there's a violation for the given action in the curState.
+			// we only need the curState and the action to check for an LTS Property.
+			boolean ltsPropViolation = false;
+			if (TLC.usesLTSProperty()) {
+				Utils.assertNotNull(curState.ltsPropState, "LTS Property state shouldn't be null!");
+				final Integer ltsCurState = curState.ltsPropState;
+				final String act = action.actionNameWithParams();
+				
+				final boolean actionInLTSAlphabet = TLC.getLTSProperty().getInputAlphabet().contains(act);
+				if (actionInLTSAlphabet) {
+					// since we're using a property lts, if there's no transition for this action it indicates
+					// that the action leads to a violation
+                	ltsPropViolation = TLC.getLTSProperty().getTransition(ltsCurState, act) == null;
+					
+					// set the "LTS State"
+					succState.ltsPropState = TLC.getLTSProperty().getTransition(ltsCurState, act);
+				}
+				else {
+					// if the action is not in the LTS Property alphabet then it cannot be a violation
+					ltsPropViolation = false;
+
+					// set the "LTS State". it doesn't change for an action outside the alphabet.
+					succState.ltsPropState = ltsCurState;
+				}
+			}*/
+			
 			if (!this.tool.isGoodState(succState)) {
+				System.err.println("Found incomplete state, error with the spec.");
 				this.doNextSetErr(curState, succState, action);
 				// It seems odd to subsume this under IVE, but we consider
 				// it an invariant that the values of all variables have to
 				// be defined.
-                this.tlc.kripke.addBadState(succState);
-				//throw new InvariantViolatedException();
+                throw new InvariantViolatedException();
 			}
 			
 			// Check if state is excluded by a state or action constraint.
@@ -470,48 +539,19 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				unseen = !isSeenState(curState, succState, action);
 			}
 			
-			// Check if succState violates any invariant:
-			if (unseen) {
-                // idardik
-				/*
-				if (this.doNextCheckInvariants(curState, succState)) {
-                    //String s = Worker.stripNewline(succState.toString());
-                    //System.out.println("Found bad state: " + s);
-					//throw new InvariantViolatedException();
-                    this.tlc.kripke.addBadState(succState);
-				}
-                else {
-                    //this.tlc.kripke.addGoodState(curState);
-                    this.tlc.kripke.addGoodState(succState);
-                }*/
-			}
-			
-			// Check if the state violates any implied action. We need to do it
-			// even if succState is not new.
-			//idardik
-			if (this.doNextCheckImplied(curState, succState)) {
-                //this.tlc.kripke.addBadState(curState);
-				//throw new InvariantViolatedException();
-				System.out.println("cur: " + Worker.stripNewline(curState.toString()));
-				System.out.println("suc: " + Worker.stripNewline(succState.toString()));
-			}
-			//idardik this code does not work for properties right now, only invariants
-			if (this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState)) {
-				this.tlc.kripke.addBadState(succState);
-			}
-			else {
-                this.tlc.kripke.addGoodState(succState);
-			}
-			
 			if (inModel && unseen) {
 				// The state is inModel, unseen and neither invariants
 				// nor implied actions are violated. It is thus eligible
 				// for further processing by other workers.
-				final boolean isBadState = this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState);
-				final boolean isGoodState = !isBadState;
+				final boolean stateBasedPropViolation = this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState);
+				final boolean isGoodState = !stateBasedPropViolation;
+				//final boolean isGoodState = TLC.usesLTSProperty() ? !ltsPropViolation : !stateBasedPropViolation;
+				
 				if (isGoodState || TLC.checkBadStates()) {
 					this.squeue.sEnqueue(succState);
 				}
+            	
+                TLC.currentLTSBuilder().addState(succState);
 			}
 			return this;
 		} catch (Exception e) {

@@ -50,6 +50,7 @@ public class Robustness {
     
     // M_err_rep: states that are in (M_err \cap P) but MAY leave P in one step
     public static void compareSpecToProperty(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    	/*
     	final String outputLoc = args[1] + "/";
     	final String tla = args[2];
     	final String cfg = args[3];
@@ -69,10 +70,12 @@ public class Robustness {
     	
     	// compute the representation for beh(P) - \eta(spec,P)
     	computePropertyDiffRep(tla, tlc, tlc.getKripke(), outputLoc, jsonStrs, jsonLists);
+    	*/
     }
 
 	// M_err_rep: states that are in (M_err \cap E) but MAY leave E in one step
     public static void compareSpecToEnvironment(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    	/*
     	final String outputLoc = args[1] + "/";
     	final String tlaM = args[2];
     	final String cfgM = args[3];
@@ -105,9 +108,11 @@ public class Robustness {
     	jsonStrs.put(SPEC_NAME, tlcM.getSpecName());
     	jsonStrs.put(SPEC_IS_SAFE, tlcM.getKripke().isSafe() ? TRUE : FALSE);
     	jsonStrs.put(CLOSED_SYSTEM_IS_SAFE, tlcClosed.getKripke().isSafe() ? TRUE : FALSE);
+    	*/
     }
     
     public static void compareSpecs(String[] args, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    	/*
     	final String outputLoc = args[1] + "/";
     	final String tla1 = args[2];
     	final String cfg1 = args[3];
@@ -144,6 +149,7 @@ public class Robustness {
     	// compute the representation for \eta(spec2,P) - \eta(spec1,P)
     	// and \eta(spec1,P) - \eta(spec2,P)
     	computeComparisonDiffRep(tlc1, tlc2, outputLoc, jsonStrs, jsonLists);
+    	*/
     }
     
     private static void computePropertyDiffRep(final String tlaFile, final TLC tlc, final ExtKripke kripke, final String outputLoc,
@@ -159,6 +165,7 @@ public class Robustness {
     private static void computeSpecDiffRep(final String tlaFile, final TLC tlc, final ExtKripke kripke, final String outputLoc,
     		final Map<String, Set<EKState>> safetyBoundaryByGroup,
     		Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    	/*
     	jsonStrs.put(SPEC_IS_SAFE, kripke.isSafe() ? TRUE : FALSE);
     	
     	// create diffRep before the 'if' to make sure we write whether the safetyBoundary is empty or not
@@ -180,9 +187,11 @@ public class Robustness {
             	jsonStrs.put(DIFF_REP_STATE_FORMULA_ERROR, MISSING_TYPEOK);
         	}
     	}
+    	*/
     }
     
     private static void computeComparisonDiffRep(final TLC tlc1, final TLC tlc2, final String outputLoc, Map<String,String> jsonStrs, Map<String,List<String>> jsonLists) {
+    	/*
     	final ExtKripke kripke1 = tlc1.getKripke();
     	final ExtKripke kripke2 = tlc2.getKripke();
     	final ExtKripke errPre1 = kripke1.createErrPre();
@@ -200,6 +209,7 @@ public class Robustness {
     		computeComparisonDiffRepWrtOneSpec(new ExtKripke(kripke1), new ExtKripke(errPre1), new ExtKripke(errPost1), new ExtKripke(errPre2), new ExtKripke(errPost2),
     				tlc1, tlc2, tlc2.getSpecName(), outputLoc, SpecScope.Spec2, jsonStrs, jsonLists);
     	}
+    	*/
     }
 
 	// compute the diff rep, i.e. the states that represent \eta2 - \eta1
@@ -271,10 +281,13 @@ public class Robustness {
     
     private static String createErrPre(final String tag, final TLC tlc, final String tla, final String cfg, Set<String> vars,
     		final String outputLoc, Map<String,String> jsonOutput) {
+    	/*
     	ExtKripke kripke = tlc.getKripke();
     	ExtKripke errPreKripke = kripke.createErrPre();
     	final boolean strongFairness = true; // need SF in err pre
     	return kripkeToTLA(tag, tlc, errPreKripke, tla, cfg, outputLoc, strongFairness, vars);
+    	*/
+    	return null;
     }
     
     private static void createErrPost(final TLC tlc1, final TLC tlc2, final String tla1, final String tla2, final String cfg1, final String cfg2,
@@ -293,10 +306,13 @@ public class Robustness {
     
     private static String createErrPost(final String tag, final TLC tlc, final String tla, final String cfg, Set<String> vars,
     		final String outputLoc, Map<String,String> jsonOutput) {
+    	/*
     	ExtKripke kripke = tlc.getKripke();
     	ExtKripke errPostKripke = kripke.createErrPost();
     	final boolean strongFairness = false; // do not add SF to err post
     	return kripkeToTLA(tag, tlc, errPostKripke, tla, cfg, outputLoc, strongFairness, vars);
+    	*/
+    	return null;
     }
     
     private static String combineSpecTLA(final String tag, final String specName1, final String specName2, final Set<String> vars1, final Set<String> vars2, final String outputLoc) {

@@ -18,6 +18,7 @@ import cmu.isr.ts.DetLTS;
 import cmu.isr.ts.LTS;
 import cmu.isr.ts.MutableDetLTS;
 import cmu.isr.ts.lts.CompactLTS;
+import cmu.isr.ts.lts.SafetyUtils;
 import net.automatalib.automata.fsa.impl.compact.CompactDFA;
 import net.automatalib.automata.fsa.impl.compact.CompactNFA;
 import net.automatalib.util.automata.builders.AutomatonBuilders;
@@ -123,6 +124,7 @@ public class ExtKripke {
 
 	// bad initial states are explicitly added (via addBadState()) in ModelChecker.java
 	public void addInitState(TLCState s) {
+		Utils.assertNotNull(s, "Attempting to add null initial state");
 		final String sName = Utils.normalizeStateString(s.toString());
 		final EKState eks = new EKState(sName);
 		allStates.add(eks);
@@ -130,12 +132,14 @@ public class ExtKripke {
 	}
 
 	public void addGoodState(TLCState s) {
+		Utils.assertNotNull(s, "Attempting to add null good state");
 		final String sName = Utils.normalizeStateString(s.toString());
 		final EKState eks = new EKState(sName);
 		allStates.add(eks);
 	}
 
 	public void addBadState(TLCState s) {
+		Utils.assertNotNull(s, "Attempting to add null bad state");
 		final String sName = Utils.normalizeStateString(s.toString());
 		final EKState eks = new EKState(sName);
 		allStates.add(eks);
@@ -143,31 +147,21 @@ public class ExtKripke {
 	}
 
     public void addTransition(Action act, TLCState src, TLCState dst) {
+		Utils.assertNotNull(act, "Attempting to add null action while adding transition");
+		Utils.assertNotNull(src, "Attempting to add null src state while adding transition");
+		Utils.assertNotNull(dst, "Attempting to add null dst state while adding transition");
+		
     	final String srcName = Utils.normalizeStateString(src.toString());
     	final String dstName = Utils.normalizeStateString(dst.toString());
     	final EKState srcEks = new EKState(srcName);
     	final EKState dstEks = new EKState(dstName);
     	final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
     	
-    	final String rawActName = act.getName().toString();
-    	Utils.assertNotNull(rawActName, "TLC added null action name to an ExtKripke instance!");
-    	char c[] = rawActName.toCharArray();
-    	c[0] = Character.toLowerCase(c[0]);
-    	final String actName = new String(c);
-    	
+    	final String actName = act.actionNameWithoutPrams();
     	delta.add(transition);
     	deltaActions.put(transition, actName);
-
-    	// add param values to the action
-    	final List<String> paramKeys = Utils.actionParams(act);
-    	final Map<String, Value> mp = act.con.toStrMap();
-    	ArrayList<String> params = new ArrayList<>();
-    	for (final String k : paramKeys) {
-    		final Value val = mp.get(k);
-    		final String sk = val.toString().replace("\"", "");
-    		params.add(sk);
-    	}
-    	final String actNameWParams = actName + "_" + String.join("_", params);
+    	
+    	final String actNameWParams = act.actionNameWithParams();
     	if (!deltaActionsWithParams.containsKey(transition)) {
         	deltaActionsWithParams.put(transition, new HashSet<>());
     	}
@@ -198,6 +192,14 @@ public class ExtKripke {
 
 	public Set<EKState> reach() {
 		return this.allStates;
+	}
+
+	public Set<EKState> initStates() {
+		return this.initStates;
+	}
+
+	public Set<EKState> badStates() {
+		return this.badStates;
 	}
 
 	public boolean isBadState(final EKState s) {
@@ -371,6 +373,70 @@ public class ExtKripke {
 				.stream()
 				.map(p -> p.first)
 				.collect(Collectors.toSet());
+    }
+    
+    /**
+     * Perform BFS to find whether <dst> is reachable
+     * @param s
+     * @return
+     */
+    private boolean isReachable(EKState dst) {
+    	Set<EKState> visited = new HashSet<>();
+    	List<EKState> queue = new ArrayList<>();
+    	queue.addAll(this.initStates);
+    	
+    	while (!queue.isEmpty()) {
+    		final EKState cur = queue.remove(0);
+    		visited.add(cur);
+    		if (cur.equals(dst)) {
+    			return true;
+    		}
+    		
+    		if (this.outgoingTransitionsPerState.containsKey(cur)) {
+        		final Set<EKState> succStates = this.outgoingTransitionsPerState.get(cur)
+        				.stream()
+        				.map(p -> p.second)
+        				.filter(s -> !visited.contains(s))
+        				.collect(Collectors.toSet());
+        		queue.addAll(succStates);
+    		}
+    	}
+    	return false;
+    }
+    
+    /**
+     * Perform BFS to find whether <dst> is reachable. Only considers good states in the queue.
+     * If <dst> is a bad state this method will always return false.
+     * @param s
+     * @return
+     */
+    private boolean isReachableViaGoodStates(EKState dst) {
+    	Set<EKState> visited = new HashSet<>();
+    	List<EKState> queue = new ArrayList<>();
+    	final Set<EKState> goodInitStates = this.initStates
+    			.stream()
+    			.filter(s -> isGoodState(s))
+    			.collect(Collectors.toSet());
+    	queue.addAll(goodInitStates);
+    	
+    	while (!queue.isEmpty()) {
+    		final EKState cur = queue.remove(0);
+    		visited.add(cur);
+    		if (cur.equals(dst)) {
+    			return true;
+    		}
+    		
+    		if (this.outgoingTransitionsPerState.containsKey(cur)) {
+        		final Set<EKState> succStates = this.outgoingTransitionsPerState.get(cur)
+        				.stream()
+        				.map(p -> p.second)
+        				.filter(s -> isGoodState(s))
+        				.filter(s -> !visited.contains(s))
+        				.collect(Collectors.toSet());
+        		queue.addAll(succStates);
+    		}
+    	}
+    	return false;
     }
     
     /**
@@ -739,6 +805,22 @@ public class ExtKripke {
     public DetLTS<Integer, String> toWeakestAssumptionDFA() {
     	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
     	
+    	/**
+    	 * TODO we need to change the strategy here because the init state shouldn't be an error state. We need to
+    	 * avoid marking any states as bad, and instead mark certain actions as bad when they occur in a given state.
+    	 */
+    	// if one of the init states is bad then return a FALSE assumption
+		final boolean hasBadInitState = initStates()
+				.stream()
+				.anyMatch(s -> isBadState(s));
+		if (hasBadInitState) {
+			compactNFA.addInitialState();
+			CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
+			MutableDetLTS<Integer,String> detLTS = LtsUtils.INSTANCE.toDeterministic(compactLTS);
+	    	return detLTS;
+	    	//return WAHelper.INSTANCE.addTheta(detLTS);
+		}
+    	
     	// add all states and track them in ekToLtsStates
     	Map<EKState, Integer> ekToLtsStates = new HashMap<>();
     	final Set<EKState> goodStates = Utils.setMinus(this.allStates, this.badStates);
@@ -763,9 +845,17 @@ public class ExtKripke {
     		}
     	}
     	
-    	// add all error states
+    	// create error state
     	final Integer ltsBadState = compactNFA.addState(false);
+    	
+    	// for each transition from a good state to a bad state, add a transition from the good
+    	// state to ltsBadState.
     	for (final EKState ekSrc : goodStates) {
+    		//Utils.assertTrue(outgoingTransitionsPerState.containsKey(ekSrc), "ExtKripke is missing a good state in outgoingTransitionsPerState!");
+    		// if there's no outgoing transitions from ekSrc, then ekSrc cannot lead to an error state
+    		if (!outgoingTransitionsPerState.containsKey(ekSrc)) {
+    			continue;
+    		}
     		final Integer ltsSrc = ekToLtsStates.get(ekSrc);
     		final Set<Pair<String,EKState>> badTransitions = outgoingTransitionsPerState.get(ekSrc)
     				.stream()
@@ -774,6 +864,7 @@ public class ExtKripke {
     		for (Pair<String,EKState> p : badTransitions) {
     			final String act = p.first;
     			compactNFA.addTransition(ltsSrc, act, ltsBadState);
+    			//Utils.assertTrue(isReachableViaGoodStates(ekSrc), "Found unreachable state: " + ekSrc);
     		}
     	}
     	
@@ -796,8 +887,10 @@ public class ExtKripke {
     	}
     	
     	for (final Pair<EKState,EKState> tr : this.delta) {
-    		final int src = ekToLtsStates.get(tr.first);
-    		final int dst = ekToLtsStates.get(tr.second);
+    		Utils.assertNotNull(tr.second, "dst is null");
+    		Utils.assertTrue(this.allStates.contains(tr.second), "dst is not in allStates");
+    		final Integer src = ekToLtsStates.get(tr.first);
+    		final Integer dst = ekToLtsStates.get(tr.second);
     		final Set<String> acts = this.deltaActionsWithParams.get(tr);
     		for (final String a : acts) {
     			compactNFA.addTransition(src, a, dst);

@@ -163,7 +163,7 @@ public abstract class AbstractChecker
         return old;
     }
     
-    public abstract ExtKripke getKripke();
+    //public abstract ExtKripke getKripke();
 
     /**
      * Set the error state. 
