@@ -149,25 +149,12 @@ public class ExtKripke {
     	final EKState dstEks = new EKState(dstName);
     	final Pair<EKState,EKState> transition = new Pair<>(srcEks, dstEks);
     	
-    	final String rawActName = act.getName().toString();
-    	Utils.assertNotNull(rawActName, "TLC added null action name to an ExtKripke instance!");
-    	char c[] = rawActName.toCharArray();
-    	c[0] = Character.toLowerCase(c[0]);
-    	final String actName = new String(c);
+    	final String actName = act.actionNameWithoutPrams();
+    	final String actNameWParams = act.actionNameWithParams();
     	
     	delta.add(transition);
     	deltaActions.put(transition, actName);
-
-    	// add param values to the action
-    	final List<String> paramKeys = Utils.actionParams(act);
-    	final Map<String, Value> mp = act.con.toStrMap();
-    	ArrayList<String> params = new ArrayList<>();
-    	for (final String k : paramKeys) {
-    		final Value val = mp.get(k);
-    		final String sk = val.toString().replace("\"", "");
-    		params.add(sk);
-    	}
-    	final String actNameWParams = actName + "_" + String.join("_", params);
+    	
     	if (!deltaActionsWithParams.containsKey(transition)) {
         	deltaActionsWithParams.put(transition, new HashSet<>());
     	}
