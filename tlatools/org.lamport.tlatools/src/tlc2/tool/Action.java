@@ -4,14 +4,19 @@
 package tlc2.tool;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import tla2sany.semantic.OpDefNode;
 import tla2sany.semantic.SemanticNode;
 import tla2sany.st.Location;
 import tla2sany.st.SyntaxTreeConstants;
 import tla2sany.st.TreeNode;
+import tlc2.Utils;
 import tlc2.tool.coverage.CostModel;
 import tlc2.util.Context;
+import tlc2.value.impl.Value;
 import util.UniqueString;
 
 public final class Action implements ToolGlobals, Serializable {
@@ -57,6 +62,27 @@ public final class Action implements ToolGlobals, Serializable {
 	  // opDef null when action not declared, i.e. Spec == x = 0 /\ ...
 	  // See test64 and test64a and others.
 	  this.opDef = opDef;
+  }
+  
+  public String actionNameWithoutPrams() {
+	  final String rawActName = this.getName().toString();
+	  Utils.assertNotNull(rawActName, "TLC added null action name to an ExtKripke instance!");
+	  char c[] = rawActName.toCharArray();
+	  c[0] = Character.toLowerCase(c[0]);
+	  return new String(c);
+  }
+  
+  public String actionNameWithParams() {
+	  // add param values to the action
+	  final List<String> paramKeys = Utils.actionParams(this);
+	  final Map<String, Value> mp = this.con.toStrMap();
+	  ArrayList<String> params = new ArrayList<>();
+	  for (final String k : paramKeys) {
+		  final Value val = mp.get(k);
+	  	  final String sk = val.toString().replace("\"", "");
+	  	  params.add(sk);
+	  }
+	  return this.actionNameWithoutPrams() + "_" + String.join("_", params);
   }
 
 /* Returns a string representation of this action.  */
