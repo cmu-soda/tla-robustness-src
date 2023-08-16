@@ -48,16 +48,19 @@ public class Composition {
     	Utils.assertNotNull(tlcProp.getKripke(), "Error generating property / WA for first component");
     	final ExtKripke propKS = tlcProp.getKripke();
     	System.out.println("KS size: " + propKS.size());
+    	int totalNumStatesChecked = propKS.size();
     	timer.reset();
     	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
     	System.out.println("prop WA gen: " + timer.timeElapsed());
     	
     	if (ltsProp.propertyIsTrue()) {
+			System.out.println("# states checked: " + totalNumStatesChecked);
 			System.out.println("WA is true.");
     		System.out.println("Property satisfied!");
     		return;
 		}
 		else if (ltsProp.propertyIsFalse()) {
+			System.out.println("# states checked: " + totalNumStatesChecked);
 			System.out.println("WA is false.");
 			System.out.println("Property may be violated.");
     		//FSPWriter.INSTANCE.write(System.out, ltsProp);
@@ -79,6 +82,7 @@ public class Composition {
         	System.out.println("runTLC: " + timer.timeElapsed());
         	Utils.assertNotNull(tlcComp.getKripke(), "Error running TLC on a component");
         	System.out.println("KS size: " + tlcComp.getKripke().size());
+        	totalNumStatesChecked += tlcComp.getKripke().size();
         	timer.reset();
         	LTS<Integer, String> ltsComp = tlcComp.getKripke().toNFA();
     		System.out.println("converting KS to NFA: " + timer.timeElapsed());
@@ -91,11 +95,13 @@ public class Composition {
         		System.out.println("WA gen: " + timer.timeElapsed());
             		
         		if (ltsProp.propertyIsTrue()) {
+        			System.out.println("# states checked: " + totalNumStatesChecked);
         			System.out.println("WA is true.");
             		System.out.println("Property satisfied!");
             		return;
         		}
         		else if (ltsProp.propertyIsFalse()) {
+        			System.out.println("# states checked: " + totalNumStatesChecked);
         			System.out.println("WA is false.");
         			System.out.println("Property may be violated.");
             		//FSPWriter.INSTANCE.write(System.out, ltsProp);
@@ -108,12 +114,14 @@ public class Composition {
         		timer.reset();
     			if (LtsUtils.INSTANCE.satisfiesNoCopy(ltsComp, ltsProp)) {
             		System.out.println("Final MC: " + timer.timeElapsed());
+        			System.out.println("# states checked: " + totalNumStatesChecked);
             		System.out.println("Property satisfied!");
             		return;
     			}
         		System.out.println("Final MC: " + timer.timeElapsed());
     		}
     	}
+		System.out.println("# states checked: " + totalNumStatesChecked);
 		System.out.println("Property may be violated.");
     }
     
