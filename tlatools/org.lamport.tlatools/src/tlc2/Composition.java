@@ -2,7 +2,9 @@ package tlc2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -13,17 +15,64 @@ import cmu.isr.ts.LTS;
 import cmu.isr.ts.lts.ltsa.LTSACall;
 import cmu.isr.ts.lts.ltsa.StringLTSInput;
 import cmu.isr.ts.lts.ltsa.StringLTSOutput;
+import cmu.isr.ts.lts.CompactLTS;
+import cmu.isr.ts.lts.SafetyUtils;
 import cmu.isr.ts.lts.ltsa.FSPWriter;
 import lts.CompositeState;
 import lts.LTSCompiler;
 import lts.LTSInputString;
 import lts.SymbolTable;
+import net.automatalib.automata.fsa.impl.compact.CompactNFA;
+import net.automatalib.automata.graphs.TransitionEdge.Property;
+import net.automatalib.util.automata.builders.AutomatonBuilders;
+import net.automatalib.util.minimizer.Block;
+import net.automatalib.util.minimizer.MinimizationResult;
+import net.automatalib.util.minimizer.Minimizer;
+import net.automatalib.words.impl.Alphabets;
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpDefNode;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.impl.FastTool;
 
 public class Composition {
+	
+	public static LTS<Integer, String> minimizeLTS(LTS<Integer, String> orig) {
+    	MinimizationResult<Integer, Property<String, Void>> minResult = Minimizer.minimize( orig.transitionGraphView(orig.getInputAlphabet()) );
+    	
+    	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(orig.getInputAlphabet())).create();
+    	
+    	Map<Integer, Integer> blockToNFAState = new HashMap<>();
+    	for (Block<Integer, Property<String, Void>> block : minResult.getBlocks()) {
+    		//final Integer origState = minResult.getRepresentative(block);
+    		//final boolean isInitState = orig.getInitialStates().contains(origState);
+    		//final boolean isAccepting = orig.isAccepting(origState);
+    		final boolean isInitState = MinimizationResult.getStatesInBlock(block)
+    				.stream()
+    				.anyMatch(s -> orig.getInitialStates().contains(s));
+    		final boolean isAccepting = MinimizationResult.getStatesInBlock(block)
+    				.stream()
+    				.allMatch(s -> orig.isAccepting(s));
+    		final int nfaState = isInitState ? compactNFA.addInitialState(isAccepting) : compactNFA.addState(isAccepting);
+    		//Utils.assertTrue(nfaState == block.getId(), "Mismatch between block ID and compactNFA ID");
+    		blockToNFAState.put(block.getId(), nfaState);
+    	}
+    	
+    	for (Block<Integer, Property<String, Void>> srcBlock : minResult.getBlocks()) {
+    		final Integer srcNFAState = blockToNFAState.get(srcBlock.getId());
+    		//final Integer srcNFAState = srcBlock.getId();
+    		final Integer srcOrig = minResult.getRepresentative(srcBlock);
+    		for (final String act : orig.getInputAlphabet()) {
+    			for (final Integer succOrig : orig.getSuccessors(srcOrig, act)) {
+    				final Block<Integer, Property<String, Void>> succBlock = minResult.getBlockForState(succOrig);
+    	    		final Integer succNFAState = blockToNFAState.get(succBlock.getId());
+    	    		//final Integer succNFAState = succBlock.getId();
+    	    		compactNFA.addTransition(srcNFAState, act, succNFAState);
+    			}
+    		}
+    	}
+    	
+    	return new CompactLTS<>(compactNFA);
+	}
     
     public static void decompVerify(String[] args) {
     	final String tla = args[1];
@@ -50,9 +99,16 @@ public class Composition {
     	System.out.println("KS size: " + propKS.size());
     	int totalNumStatesChecked = propKS.size();
     	timer.reset();
-    	DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
+    	//DetLTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
+    	LTS<Integer, String> ltsProp = propKS.toWeakestAssumptionDFA();
     	System.out.println("prop WA gen: " + timer.timeElapsed());
     	
+    	timer.reset();
+    	ltsProp = minimizeLTS(ltsProp);
+    	System.out.println("minimize ltsProp: " + timer.timeElapsed());
+    	System.out.println("KS size after min: " + ltsProp.size());
+    	
+    	/*
     	if (ltsProp.propertyIsTrue()) {
 			System.out.println("# states checked: " + totalNumStatesChecked);
 			System.out.println("WA is true.");
@@ -65,7 +121,14 @@ public class Composition {
 			System.out.println("Property may be violated.");
     		//FSPWriter.INSTANCE.write(System.out, ltsProp);
 			return;
-		}
+		}*/
+    	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+			System.out.println("# states checked: " + totalNumStatesChecked);
+			System.out.println("WA is true.");
+    		System.out.println("Property satisfied!");
+    		return;
+    	}
+    	// TODO the property will be false if there's a bad initial state
     	
     	// at this point, ltsProp /is/ the WA of the 1st component. therefore, there
     	// is no need to look at the 1st component in the following loop.
@@ -87,13 +150,26 @@ public class Composition {
         	LTS<Integer, String> ltsComp = tlcComp.getKripke().toNFA();
     		System.out.println("converting KS to NFA: " + timer.timeElapsed());
     		
+        	timer.reset();
+        	ltsComp = minimizeLTS(ltsComp);
+        	System.out.println("minimize ltsComp: " + timer.timeElapsed());
+        	System.out.println("KS size after min: " + ltsComp.size());
+    		
     		// middle iterations
     		if (i+1 < components.size()) {
         		timer.reset();
         		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
         		ltsProp = waGen.generate(true);
         		System.out.println("WA gen: " + timer.timeElapsed());
-            		
+        		
+        		// TODO should we be minimizing ltsProp here now too?
+        		/*
+        		timer.reset();
+            	ltsProp = minimizeLTS(ltsProp);
+            	System.out.println("minimize ltsProp: " + timer.timeElapsed());
+            	System.out.println("KS size after min: " + ltsProp.size());*/
+        		
+        		/*
         		if (ltsProp.propertyIsTrue()) {
         			System.out.println("# states checked: " + totalNumStatesChecked);
         			System.out.println("WA is true.");
@@ -106,13 +182,21 @@ public class Composition {
         			System.out.println("Property may be violated.");
             		//FSPWriter.INSTANCE.write(System.out, ltsProp);
         			return;
-        		}
+        		}*/
+            	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+        			System.out.println("# states checked: " + totalNumStatesChecked);
+        			System.out.println("WA is true.");
+            		System.out.println("Property satisfied!");
+            		return;
+            	}
+            	// TODO the property will be false if there's a bad initial state
     		}
 			// for the final iteration, we use model checking since it's faster than
 	    	// generating the WA
     		else {
         		timer.reset();
-    			if (LtsUtils.INSTANCE.satisfiesNoCopy(ltsComp, ltsProp)) {
+    			//if (LtsUtils.INSTANCE.satisfiesNoCopy(ltsComp, ltsProp)) {
+        		if (SafetyUtils.INSTANCE.satisfiesNotProp(ltsComp, ltsProp)) {
             		System.out.println("Final MC: " + timer.timeElapsed());
         			System.out.println("# states checked: " + totalNumStatesChecked);
             		System.out.println("Property satisfied!");
@@ -180,7 +264,7 @@ public class Composition {
     		if (i+1 < components.size()) {
         		timer.reset();
         		SubsetConstructionGenerator<String> waGen = new SubsetConstructionGenerator<>(ltsComp, ltsProp);
-        		ltsProp = waGen.generate(true);
+        		//ltsProp = waGen.generate(true);
         		System.out.println("WA gen: " + timer.timeElapsed());
             		
         		if (ltsProp.propertyIsTrue()) {

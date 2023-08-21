@@ -722,8 +722,9 @@ public class ExtKripke {
     	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
     	return LtsUtils.INSTANCE.toDeterministic(compactLTS);
     }
-    
-    public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+
+    //public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+    public LTS<Integer, String> toWeakestAssumptionDFA() {
     	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
     	
     	// add all states and track them in ekToLtsStates
@@ -766,8 +767,9 @@ public class ExtKripke {
     	
     	// add theta and all transitions associated with it
     	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
-    	MutableDetLTS<Integer,String> detLTS = LtsUtils.INSTANCE.toDeterministic(compactLTS);
-    	return WAHelper.INSTANCE.addTheta(detLTS);
+    	//MutableDetLTS<Integer,String> detLTS = LtsUtils.INSTANCE.toDeterministic(compactLTS);
+    	//return WAHelper.INSTANCE.addTheta(detLTS);
+    	return WAHelper.INSTANCE.addThetaNonDeterministic(compactLTS);
     }
     
     public LTS<Integer, String> toNFA() {
