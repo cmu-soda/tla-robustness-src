@@ -7,6 +7,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import tla2sany.semantic.OpDefNode;
 import tla2sany.semantic.SemanticNode;
@@ -66,7 +67,6 @@ public final class Action implements ToolGlobals, Serializable {
   
   public String actionNameWithoutPrams() {
 	  final String rawActName = this.getName().toString();
-	  Utils.assertNotNull(rawActName, "TLC added null action name to an ExtKripke instance!");
 	  char c[] = rawActName.toCharArray();
 	  c[0] = Character.toLowerCase(c[0]);
 	  return new String(c);
@@ -74,15 +74,14 @@ public final class Action implements ToolGlobals, Serializable {
   
   public String actionNameWithParams() {
 	  // add param values to the action
-	  final List<String> paramKeys = Utils.actionParams(this);
 	  final Map<String, Value> mp = this.con.toStrMap();
-	  ArrayList<String> params = new ArrayList<>();
-	  for (final String k : paramKeys) {
-		  final Value val = mp.get(k);
-	  	  final String sk = val.toString().replace("\"", "");
-	  	  params.add(sk);
-	  }
-	  return this.actionNameWithoutPrams() + "_" + String.join("_", params);
+	  final String actSuffix = Utils.toArrayList(getOpDef().getParams())
+			  .stream()
+		      .map(p -> p.getSignature()) // the signature is a key for the param value
+		      .map(k -> mp.get(k)) // look up the param value from the key
+		      .map(v -> v.toString().replace("\"", "")) // turn the value into a string
+		      .collect(Collectors.joining("_"));
+	  return this.actionNameWithoutPrams() + "_" + actSuffix;
   }
 
 /* Returns a string representation of this action.  */

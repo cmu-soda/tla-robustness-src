@@ -81,37 +81,27 @@ public class Utils {
     	}
     	return DEFAULT_MAX_NEG_EXAMPLES;
     }
-    
-    
-    /* action utils */
-    
-    public static List<String> actionParams(Action act) {
-    	final Map<String, Value> mp = act.con.toStrMap();
-    	final OpDefNode opNode = act.getOpDef();
-    	// use list so we get the keys in the right order
-    	return Utils.toArrayList(opNode.getParams())
-        		.stream()
-        		.map(p -> p.getSignature())
-        		.collect(Collectors.toList());
-    }
 
 	
 	/* Because assert() doesn't seem to work */
 	
 	public static void assertTrue(final boolean condition, final String msg) {
 		if (!condition) {
+			System.err.println("assertTrue failed with message: " + msg);
 			throw new RuntimeException(msg);
 		}
 	}
 	
 	public static void assertNull(final Object obj, final String msg) {
 		if (obj != null) {
+			System.err.println("assertNull failed with message: " + msg);
 			throw new RuntimeException("Null assertion failed with message: " + msg);
 		}
 	}
 	
 	public static void assertNotNull(final Object obj, final String msg) {
 		if (obj == null) {
+			System.err.println("assertNotNull failed with message: " + msg);
 			throw new RuntimeException("Not-null assertion failed with message: " + msg);
 		}
 	}

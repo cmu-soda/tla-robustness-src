@@ -10,8 +10,12 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 
+import tlc2.LTSBuilder;
+import tlc2.StaticTimer;
 import tlc2.TLC;
 import tlc2.TLCGlobals;
 import tlc2.output.EC;
@@ -58,6 +62,8 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 	private long statesGenerated;
 	private int unseenSuccessorStates = 0;
 	private volatile int maxLevel = 0;
+	
+	private Map<Long,Boolean> isBadState = null;
 
 	// SZ Feb 20, 2009: changed due to super type introduction
 	public Worker(int id, AbstractChecker tlc, String metadir, String specFile) throws IOException {
@@ -79,15 +85,15 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 		this.raf = new BufferedRandomAccessFile(filename + TLCTrace.EXT, "rw");
 	}
 	
-	private static String stripNewline(String s) {
-		StringBuilder sNew = new StringBuilder();
-		for (int i = s.length()-1; i >= 0; --i) {
-			char c = s.charAt(i);
-			if (c != '\n') {
-				sNew.insert(0, c);
-			}
+	private boolean isSuccStateBad(final TLCState currState, final TLCState succState) throws IOException, WorkerException, Exception {
+		final long key = succState.fingerPrint();
+		if (isBadState.containsKey(key)) {
+			return isBadState.get(key);
 		}
-		return sNew.toString();
+		
+		final boolean currStateIsBad = this.doNextCheckInvariants(currState, succState) || this.doCheckImpliedOneState(succState);
+		isBadState.put(key, currStateIsBad);
+		return currStateIsBad;
 	}
 
 	/**
@@ -96,6 +102,7 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
    * updates the state set and state queue.
 	 */
 	public void run() {
+		isBadState = new HashMap<>();
 		TLCState curState = null;
 		try {
 			while (true) {
@@ -117,24 +124,26 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 					return;
 				}
 				setCurrentState(curState);
-				
-				// idardik start
-                // find all transitions from curState
-				String src = stripNewline(curState.toString());
-                Action[] actions = this.tlc.tool.getActions();
+
+				//StaticTimer.enter();
+				final Action[] actions = this.tlc.tool.getActions();
                 for (int i = 0; i < actions.length; ++i) {
-                	Action act = actions[i];
-                    //System.out.println("Act: " + act.getName());
-                	StateVec succ = this.tool.getNextStates(act, curState);
+                	final Action action = actions[i];
+                	final StateVec succ = this.tool.getNextStates(action, curState);
                 	for (int j = 0; j < succ.size(); ++j) {
-                		//String dst = stripNewline(succ.elementAt(j).toString());
-                		//String transition = "(" + src + ", " + dst + ")";
-                		//System.out.println(transition);
-                        TLCState nextState = succ.elementAt(j);
-                        this.tlc.kripke.addTransition(act, curState, nextState);
+                        final TLCState nextState = succ.elementAt(j);
+    					final boolean isGoodState = !isSuccStateBad(curState, nextState);
+                        LTSBuilder ltsBuilder = TLC.currentLTSBuilder();
+                        ltsBuilder.addState(nextState);
+                        if (isGoodState) {
+                        	ltsBuilder.addTransition(curState, action, nextState);
+        				}
+        				else {
+        					ltsBuilder.addTransitionToErr(curState, action);
+        				}
                 	}
                 }
-                // idardik end
+    			//StaticTimer.exit();
 				
 				if (this.checkLiveness || mode == Mode.MC_DEBUG) {
 					// Allocate iff liveness is checked.
@@ -454,8 +463,7 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				// It seems odd to subsume this under IVE, but we consider
 				// it an invariant that the values of all variables have to
 				// be defined.
-                this.tlc.kripke.addBadState(succState);
-				//throw new InvariantViolatedException();
+				throw new InvariantViolatedException();
 			}
 			
 			// Check if state is excluded by a state or action constraint.
@@ -469,50 +477,20 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 			if (inModel) {
 				unseen = !isSeenState(curState, succState, action);
 			}
-			
-			// Check if succState violates any invariant:
-			if (unseen) {
-                // idardik
-				/*
-				if (this.doNextCheckInvariants(curState, succState)) {
-                    //String s = Worker.stripNewline(succState.toString());
-                    //System.out.println("Found bad state: " + s);
-					//throw new InvariantViolatedException();
-                    this.tlc.kripke.addBadState(succState);
-				}
-                else {
-                    //this.tlc.kripke.addGoodState(curState);
-                    this.tlc.kripke.addGoodState(succState);
-                }*/
-			}
-			
-			// Check if the state violates any implied action. We need to do it
-			// even if succState is not new.
-			//idardik
-			if (this.doNextCheckImplied(curState, succState)) {
-                //this.tlc.kripke.addBadState(curState);
-				//throw new InvariantViolatedException();
-				System.out.println("cur: " + Worker.stripNewline(curState.toString()));
-				System.out.println("suc: " + Worker.stripNewline(succState.toString()));
-			}
 			//idardik this code does not work for properties right now, only invariants
-			if (this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState)) {
-				this.tlc.kripke.addBadState(succState);
-			}
-			else {
-                this.tlc.kripke.addGoodState(succState);
-			}
+			//StaticTimer.enter();
+			TLC.currentLTSBuilder().addState(succState);
 			
 			if (inModel && unseen) {
 				// The state is inModel, unseen and neither invariants
 				// nor implied actions are violated. It is thus eligible
 				// for further processing by other workers.
-				final boolean isBadState = this.doNextCheckInvariants(curState, succState) || this.doCheckImpliedOneState(succState);
-				final boolean isGoodState = !isBadState;
+				final boolean isGoodState = !isSuccStateBad(curState, succState);
 				if (isGoodState || TLC.checkBadStates()) {
 					this.squeue.sEnqueue(succState);
 				}
 			}
+			//StaticTimer.exit();
 			return this;
 		} catch (Exception e) {
 			// We can't throw Exception here because it would violate the contract of

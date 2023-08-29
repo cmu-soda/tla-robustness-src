@@ -116,6 +116,7 @@ public class RobustDiffRep {
 	}
 	
 	private void createDiffStateRepFormula(final Set<EKState> posExamples, final TLC tlcTypeOK, final String groupName) {
+		/*
     	final ExtKripke stateSpaceKripke = tlcTypeOK.getKripke();
     	final Set<EKState> stateSpace = stateSpaceKripke.reach();
     	
@@ -191,6 +192,7 @@ public class RobustDiffRep {
         	this.jsonStrs.put(separatorFileKey, separatorFile);
         	this.jsonStrs.put(sortsMapFileKey, sortsMapFile);
     	}
+    	*/
     }
 	
 	

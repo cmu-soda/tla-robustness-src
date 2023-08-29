@@ -49,8 +49,6 @@ import util.UniqueString;
 public class ModelChecker extends AbstractChecker
 {
 
-    public ExtKripke kripke = new ExtKripke();
-
 	protected static final boolean coverage = TLCGlobals.isCoverageEnabled();
 	/**
 	 * If the state/ dir should be cleaned up after a successful model run
@@ -98,10 +96,6 @@ public class ModelChecker extends AbstractChecker
         {
             this.workers[i] = this.trace.addWorker(new Worker(i, this, this.metadir, this.tool.getRootName()));
         }
-    }
-    
-    public ExtKripke getKripke() {
-    	return kripke;
     }
     
     /**
@@ -1171,11 +1165,6 @@ public class ModelChecker extends AbstractChecker
 		 * @see tlc2.tool.IStateFunctor#addElement(tlc2.tool.TLCState)
 		 */
 		public Object addElement(final TLCState curState) {
-            // idardik begin
-            //System.out.println("Init:\n" + curState);
-            kripke.addInitState(curState);
-            // idardik end
-
 			if (Long.bitCount(numberOfInitialStates) == 1 && numberOfInitialStates > 1) {
 				MP.printMessage(EC.TLC_COMPUTING_INIT_PROGRESS, Long.toString(numberOfInitialStates));
 			}
@@ -1197,11 +1186,10 @@ public class ModelChecker extends AbstractChecker
 				// Check if the state is a legal state
 				if (!tool.isGoodState(curState)) {
 					isGoodState = false;
-					kripke.addBadState(curState);
-					//MP.printError(EC.TLC_INITIAL_STATE, new String[]{ "current state is not a legal state", curState.toString() });
-					//this.errState = curState;
-					//returnValue = EC.TLC_INITIAL_STATE;
-					//throw new InvariantViolatedException();
+					/*MP.printError(EC.TLC_INITIAL_STATE, new String[]{ "current state is not a legal state", curState.toString() });
+					this.errState = curState;
+					returnValue = EC.TLC_INITIAL_STATE;
+					throw new InvariantViolatedException();*/
 				}
 				boolean inModel = tool.isInModel(curState);
 				boolean seen = false;
@@ -1218,7 +1206,6 @@ public class ModelChecker extends AbstractChecker
 									new String[] { tool.getInvNames()[j].toString(), tool.evalAlias(curState, curState).toString() });
 							if (!TLCGlobals.continuation) {
 								isGoodState = false;
-								kripke.addBadState(curState);
 								//this.errState = curState;
 								//returnValue = EC.TLC_INVARIANT_VIOLATED_INITIAL;
 								//throw new InvariantViolatedException();
@@ -1229,7 +1216,6 @@ public class ModelChecker extends AbstractChecker
 						if (!tool.isValid(tool.getImpliedInits()[j], curState)) {
 							// We get here because of implied-inits violation:
 							isGoodState = false;
-							kripke.addBadState(curState);
 							/*MP.printError(EC.TLC_PROPERTY_VIOLATED_INITIAL,
 									new String[] { tool.getImpliedInitNames()[j], tool.evalAlias(curState, curState).toString() });
 							this.errState = curState;
@@ -1238,6 +1224,13 @@ public class ModelChecker extends AbstractChecker
 						}
 					}
 				}
+				
+				if (isGoodState) {
+					TLC.currentLTSBuilder().addInitState(curState);
+				} else {
+					TLC.currentLTSBuilder().addBadInitState(curState);
+				}
+				
 				if (isGoodState || TLC.checkBadStates()) {
 					if (inModel) {
 						if (!seen) {

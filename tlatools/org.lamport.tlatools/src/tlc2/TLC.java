@@ -168,9 +168,9 @@ public class TLC {
      */
     private final String tlcKey;
     /**
-     * Kripke Structure representing the TLA+ model
+     * Builder class for creating an LTS.
      */
-    private ExtKripke kripke;
+    private LTSBuilder ltsBuilder;
     /**
      * Whether to run in model checking or simulation mode.
      * Defaults to model checking.
@@ -291,7 +291,7 @@ public class TLC {
      */
 	public TLC(final String key) {
 		tlcKey = key;
-		kripke = null;
+		ltsBuilder = null;
         welcomePrinted = false;
         
         runMode = RunMode.MODEL_CHECK;
@@ -313,10 +313,6 @@ public class TLC {
         fpSetConfiguration = new FPSetConfiguration();
 
         params = new HashMap<>();
-	}
-	
-	public ExtKripke getKripke() {
-		return this.kripke;
 	}
     
     public void initialize(final String tla, final String cfg) {
@@ -392,6 +388,7 @@ public class TLC {
     	if (supressTLCOutput) {
     		System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
     	}
+		this.ltsBuilder = new LTSBuilder();
 
         // Try to parse parameters.
         if (!this.handleParameters(args)) {
@@ -439,6 +436,15 @@ public class TLC {
     
     public static boolean checkBadStates() {
     	return !TLC.modelCheckOnlyGoodStates;
+    }
+    
+    public LTSBuilder getLTSBuilder() {
+    	return this.ltsBuilder;
+    }
+
+    public static LTSBuilder currentLTSBuilder() {
+    	Utils.assertNotNull(TLC.currentInstance, "No current instance!");
+    	return TLC.currentInstance.ltsBuilder;
     }
     
     public Set<String> stateVarsInSpec() {
@@ -1337,8 +1343,6 @@ public class TLC {
 							startTime);
 					modelCheckerMXWrapper = new ModelCheckerMXWrapper((ModelChecker) TLCGlobals.mainChecker, this);
 					result = TLCGlobals.mainChecker.modelCheck();
-					//idardik
-					kripke = TLCGlobals.mainChecker.getKripke();
                 } else
                 {
 					TLCGlobals.mainChecker = new DFIDModelChecker(tool, metadir, stateWriter, deadlock, fromChkpt, startTime);
