@@ -22,6 +22,7 @@ import net.automatalib.automata.fsa.impl.compact.CompactDFA;
 import net.automatalib.automata.fsa.impl.compact.CompactNFA;
 import net.automatalib.util.automata.builders.AutomatonBuilders;
 import net.automatalib.words.impl.Alphabets;
+import tlc2.StaticTimer;
 import tlc2.TLC;
 import tlc2.Utils;
 import tlc2.Utils.Pair;
@@ -130,19 +131,24 @@ public class ExtKripke {
 	}
 
 	public void addGoodState(TLCState s) {
+		//StaticTimer.enter();
 		final String sName = Utils.normalizeStateString(s.toString());
 		final EKState eks = new EKState(sName);
 		allStates.add(eks);
+		//StaticTimer.exit();
 	}
 
 	public void addBadState(TLCState s) {
+		//StaticTimer.enter();
 		final String sName = Utils.normalizeStateString(s.toString());
 		final EKState eks = new EKState(sName);
 		allStates.add(eks);
 		badStates.add(eks);
+		//StaticTimer.exit();
 	}
 
     public void addTransition(Action act, TLCState src, TLCState dst) {
+		//StaticTimer.enter();
     	final String srcName = Utils.normalizeStateString(src.toString());
     	final String dstName = Utils.normalizeStateString(dst.toString());
     	final EKState srcEks = new EKState(srcName);
@@ -166,6 +172,7 @@ public class ExtKripke {
     		outgoingTransitionsPerState.put(srcEks, new HashSet<>());
     	}
     	outgoingTransitionsPerState.get(srcEks).add(new Pair<>(actNameWParams, dstEks));
+		//StaticTimer.exit();
     }
 
 
@@ -722,8 +729,9 @@ public class ExtKripke {
     	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
     	return LtsUtils.INSTANCE.toDeterministic(compactLTS);
     }
-    
-    public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+
+    //public DetLTS<Integer, String> toWeakestAssumptionDFA() {
+    public LTS<Integer, String> toWeakestAssumptionDFA() {
     	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
     	
     	// add all states and track them in ekToLtsStates
@@ -766,8 +774,9 @@ public class ExtKripke {
     	
     	// add theta and all transitions associated with it
     	CompactLTS<String> compactLTS = new CompactLTS<>(compactNFA);
-    	MutableDetLTS<Integer,String> detLTS = LtsUtils.INSTANCE.toDeterministic(compactLTS);
-    	return WAHelper.INSTANCE.addTheta(detLTS);
+    	//MutableDetLTS<Integer,String> detLTS = LtsUtils.INSTANCE.toDeterministic(compactLTS);
+    	//return WAHelper.INSTANCE.addTheta(detLTS);
+    	return WAHelper.INSTANCE.addThetaNonDeterministic(compactLTS);
     }
     
     public LTS<Integer, String> toNFA() {
@@ -781,7 +790,8 @@ public class ExtKripke {
 			final int ltsState = isInitState ? compactNFA.addInitialState(isGoodState) : compactNFA.addState(isGoodState);
 			ekToLtsStates.put(ekState, ltsState);
     	}
-    	
+
+    	// add all transitions
     	for (final Pair<EKState,EKState> tr : this.delta) {
     		final int src = ekToLtsStates.get(tr.first);
     		final int dst = ekToLtsStates.get(tr.second);

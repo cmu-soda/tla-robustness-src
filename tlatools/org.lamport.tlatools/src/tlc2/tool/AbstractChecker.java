@@ -162,8 +162,6 @@ public abstract class AbstractChecker
         this.done = true;
         return old;
     }
-    
-    public abstract ExtKripke getKripke();
 
     /**
      * Set the error state. 
