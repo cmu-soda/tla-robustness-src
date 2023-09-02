@@ -94,27 +94,30 @@ public class Composition {
     	tlcFirstComp.modelCheckOnlyGoodStates(firstComp, cfg);
     	System.out.println("State space gen: " + timer.timeElapsed() + "ms");
     	Utils.assertNotNull(tlcFirstComp.getLTSBuilder(), "Error generating state space for the first component!");
-    	System.out.println("# unique states: " + tlcFirstComp.getLTSBuilder().size() + " states");
-    	int totalNumStatesChecked = tlcFirstComp.getLTSBuilder().size();
     	
     	// turn the first component into a safety property (interface requirement)
     	timer.reset();
-    	LTS<Integer, String> ltsProp = tlcFirstComp.getLTSBuilder().toNFAIncludingAnErrorState();
+    	LTS<Integer, String> ltsProp = tlcFirstComp.getLTSBuilder().toIncompleteDetAutIncludingAnErrorState();
     	System.out.println("LTS gen: " + timer.timeElapsed() + "ms");
+    	System.out.println("# unique states: " + (ltsProp.size()-1) + " states");
+    	int totalSumOfStatesChecked = ltsProp.size() - 1;
+    	int largestProductOfStatesChecked = ltsProp.size() - 1;
     	
     	// minimize the LTS
     	timer.reset();
     	ltsProp = minimizeLTS(ltsProp);
     	System.out.println("minimization: " + timer.timeElapsed() + "ms");
-    	System.out.println("# unique states post-minimization: " + ltsProp.size() + " states");
+    	System.out.println("# unique states post-minimization: " + (ltsProp.size()-1) + " states");
     	
     	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+    		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
     		System.out.println();
     		System.out.println("Total # states checked: " + totalNumStatesChecked);
     		System.out.println("Property satisfied!");
     		return;
     	}
     	if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
+    		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
     		System.out.println();
     		System.out.println("Total # states checked: " + totalNumStatesChecked);
 			System.out.println("Property may be violated.");
@@ -136,34 +139,36 @@ public class Composition {
         	tlcComp.modelCheck(comp, noInvsCfg);
         	System.out.println("State space gen: " + timer.timeElapsed() + "ms");
         	Utils.assertNotNull(tlcComp.getLTSBuilder(), "Error generating state space for component " + compNum + "!");
-        	System.out.println("# unique states: " + tlcComp.getLTSBuilder().size() + " states");
-        	totalNumStatesChecked += tlcComp.getLTSBuilder().size();
         	
         	// turn the next component into an LTS (user of the interface provided by ltsProp)
         	timer.reset();
-        	LTS<Integer, String> ltsComp = tlcComp.getLTSBuilder().toNFAWithoutAnErrorState();
+        	LTS<Integer, String> ltsComp = tlcComp.getLTSBuilder().toIncompleteDetAutWithoutAnErrorState();
         	System.out.println("LTS gen: " + timer.timeElapsed() + "ms");
-    		
+        	System.out.println("# unique states: " + (ltsComp.size()-1) + " states");
+        	totalSumOfStatesChecked += ltsComp.size() - 1;
         	// minimize the LTS for the component
         	timer.reset();
         	ltsComp = minimizeLTS(ltsComp);
         	System.out.println("minimization: " + timer.timeElapsed() + "ms");
-        	System.out.println("# unique states post-minimization: " + ltsComp.size() + " states");
+        	System.out.println("# unique states post-minimization: " + (ltsComp.size()-1) + " states");
         	
         	// create new safety property (interface requirement for all components seen so far)
     		timer.reset();
     		ltsProp = ParallelComposition.INSTANCE.parallel(ltsComp, ltsProp);
     		// TODO should we be minimizing ltsProp here now too?
     		System.out.println("New property gen (|| composition): " + timer.timeElapsed() + "ms");
+        	largestProductOfStatesChecked = Math.max(largestProductOfStatesChecked, ltsProp.size()-1);	
     		
     		// if the new safety property is TRUE or FALSE then model checking is done
         	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+        		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
         		System.out.println();
         		System.out.println("Total # states checked: " + totalNumStatesChecked);
         		System.out.println("Property satisfied!");
         		return;
         	}
         	if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
+        		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
         		System.out.println();
         		System.out.println("Total # states checked: " + totalNumStatesChecked);
     			System.out.println("Property may be violated.");
@@ -171,6 +176,7 @@ public class Composition {
     			return;
         	}
     	}
+		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
 		System.out.println();
 		System.out.println("Total # states checked: " + totalNumStatesChecked);
 		System.out.println("Property may be violated.");

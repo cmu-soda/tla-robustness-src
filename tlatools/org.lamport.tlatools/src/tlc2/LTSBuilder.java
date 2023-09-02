@@ -27,6 +27,9 @@ public class LTSBuilder {
 	private Set<Pair<LTSBState,String>> badTransitions = new HashSet<>();
 	private Set<String> allActions = new HashSet<>();
 
+	// we keep track of partial transitions so we can detect LTSs that aren't incomplete deterministic automata
+	private Set<Pair<LTSBState,String>> partialTransitions = new HashSet<>();
+
 
 	public int size() {
 		return this.allStates.size();
@@ -57,6 +60,11 @@ public class LTSBuilder {
     	final LTSBState lbsDst = new LTSBState(dst);
     	this.allActions.add(strAct);
     	this.goodTransitions.add(new Triple<>(lbsSrc, strAct, lbsDst));
+    	
+    	// ensures that we construct only incomplete deterministic automata
+    	final Pair<LTSBState,String> partial = new Pair<>(lbsSrc, strAct);
+    	Utils.assertTrue(!partialTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
+    	partialTransitions.add(partial);
     }
 
     public void addTransitionToErr(final TLCState src, final Action act) {
@@ -64,9 +72,14 @@ public class LTSBuilder {
     	final String strAct = act.actionNameWithParams();
     	this.allActions.add(strAct);
     	this.badTransitions.add(new Pair<>(lbsSrc, strAct));
+
+    	// ensures that we construct only incomplete deterministic automata
+    	final Pair<LTSBState,String> partial = new Pair<>(lbsSrc, strAct);
+    	Utils.assertTrue(!partialTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
+    	partialTransitions.add(partial);
     }
 
-    public LTS<Integer, String> toNFAIncludingAnErrorState() {
+    public LTS<Integer, String> toIncompleteDetAutIncludingAnErrorState() {
     	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
     	final Integer ltsErrState = compactNFA.addState(false);
 
@@ -93,7 +106,7 @@ public class LTSBuilder {
     	return new CompactLTS<String>(compactNFA);
     }
 
-    public LTS<Integer, String> toNFAWithoutAnErrorState() {
+    public LTS<Integer, String> toIncompleteDetAutWithoutAnErrorState() {
     	Utils.assertTrue(this.badTransitions.size() == 0, "Called toNFAWithoutAnErrorState() on an unsafe LTS!");
     	CompactNFA<String> compactNFA = AutomatonBuilders.newNFA(Alphabets.fromCollection(this.allActions)).create();
 
