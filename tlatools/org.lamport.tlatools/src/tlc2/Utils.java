@@ -87,21 +87,21 @@ public class Utils {
 	
 	public static void assertTrue(final boolean condition, final String msg) {
 		if (!condition) {
-			System.err.println("assertTrue failed with message: " + msg);
+			System.err.println("\n\n!!! assertTrue failed with message: " + msg + "\n\n");
 			throw new RuntimeException(msg);
 		}
 	}
 	
 	public static void assertNull(final Object obj, final String msg) {
 		if (obj != null) {
-			System.err.println("assertNull failed with message: " + msg);
+			System.err.println("\n\n!!! assertNull failed with message: " + msg + "\n\n");
 			throw new RuntimeException("Null assertion failed with message: " + msg);
 		}
 	}
 	
 	public static void assertNotNull(final Object obj, final String msg) {
 		if (obj == null) {
-			System.err.println("assertNotNull failed with message: " + msg);
+			System.err.println("\n\n!!! assertNotNull failed with message: " + msg + "\n\n");
 			throw new RuntimeException("Not-null assertion failed with message: " + msg);
 		}
 	}

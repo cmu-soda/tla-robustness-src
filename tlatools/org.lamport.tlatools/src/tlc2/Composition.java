@@ -3,6 +3,7 @@ package tlc2;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -433,21 +434,13 @@ public class Composition {
     	tlc.initialize(tla, cfg);
     	final FastTool ft = (FastTool) tlc.tool;
     	
-    	// TODO we could definitely mine this from the spec
-    	final String nextName = "Next";
-    	
     	// calculate variables to remove from the spec
     	final Set<String> allVars = Utils.toArrayList(ft.getVarNames())
         		.stream()
         		.collect(Collectors.toSet());
     	final Set<String> removeVars = Utils.setMinus(allVars, keepVars);
     	
-    	// get the actions and invariants in the spec
-		final Set<String> actionNames = Utils.toArrayList(ft.getActions())
-				.stream()
-				.map(a -> a.getName().toString())
-				.filter(a -> !a.equals(nextName)) // the "Next" transition relation should not be filtered out
-				.collect(Collectors.toSet());
+    	// get the invariants in the spec
 		final Set<String> invariants = Utils.toArrayList(ft.getInvNames())
 				.stream()
 				.collect(Collectors.toSet());
@@ -457,39 +450,41 @@ public class Composition {
 		final ModuleNode mn = ft.getModule(moduleName);
 		List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
 				.stream()
-				.filter(d -> !d.isStandardModule())
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
 				.filter(d -> includeInvs ? true : !invariants.contains(d.getName().toString()))
 				.collect(Collectors.toList());
 		
-		// remove all vars in the module from removeVars
-		for (OpDefNode n : moduleNodes) {
-			n.removeStateVarsFromUnchangedTuples(removeVars);
-			n.removeConjunctsWithEmptyUnchangedOp();
-			n.removeConjunctsWithStateVars(removeVars);
-			n.removeChildrenWithName(removeVars);
-			n.removeUnusedLetDefs();
+		// decompose the module in the following steps which we repeat until fixpoint (see step 3 for termination condition):
+		// 1. remove all references to the unwanted nodes in <toRemove>. mark SemanticNodes that become
+		//	  bad, and hence need to be removed from the AST.
+		// 2. remove any SemanticNodes that are marked as bad from step 1. this won't get rid of top level
+		//    nodes that need to be removed: we handle that in step 3.
+		// 3. identify top level modules (in <moduleNodes>) that need to be removed. if there are any, then
+		//    add these to <toRemove> and go back to step 1.
+		Set<String> toRemove = new HashSet<>(removeVars);
+		boolean reachedFixpoint = false;
+		while (!reachedFixpoint) {
+			moduleNodes.forEach(n -> n.removeChildrenWithName(toRemove));
+			moduleNodes.forEach(n -> n.removeMalformedChildren());
+			final Set<String> nextToRemove = moduleNodes
+					.stream()
+					.filter(m -> m.isMalformed() || m.hasOnlyUnchangedConjuncts())
+					.map(m -> m.getName().toString())
+					.collect(Collectors.toSet());
+			moduleNodes = moduleNodes
+					.stream()
+					.filter(m -> !nextToRemove.contains(m.getName().toString()))
+					.collect(Collectors.toList());
+			reachedFixpoint = toRemove.containsAll(nextToRemove);
+			toRemove.addAll(nextToRemove);
 		}
-		
-		// .filter(d -> !d.emptyNode())
-		
-		// remove any actions that become empty from removing the vars in removeVars
-		final Set<OpDefNode> actionNodesToRemove = moduleNodes
-				.stream()
-				.filter(n -> actionNames.contains(n.getName().toString()))
-				.filter(n -> n.hasOnlyUnchangedConjuncts())
-				.collect(Collectors.toSet());
-		final Set<String> actionNodeNamesToRemove = actionNodesToRemove
-				.stream()
-				.map(n -> n.getName().toString())
-				.collect(Collectors.toSet());
-		for (OpDefNode n : moduleNodes) {
-			n.removeChildrenWithName(actionNodeNamesToRemove);
-		}
+		moduleNodes.forEach(n -> n.removeUnusedLetDefs());
+		moduleNodes.forEach(n -> n.removeConjunctsWithEmptyUnchangedOp());
 		
 		// create TLA+ from the node defs
 		final String specBody = moduleNodes
 				.stream()
-				.filter(d -> !actionNodesToRemove.contains(d))
 				.map(d -> d.toTLA())
 				.collect(Collectors.joining("\n\n"));
 		

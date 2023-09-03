@@ -490,9 +490,10 @@ public class TLC {
     	// get the top level module and all op def nodes
     	final String moduleName = this.getModelName();
     	final ModuleNode mn = ft.getModule(moduleName);
-    	List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
     			.stream()
-    			.filter(d -> !d.isStandardModule())
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
     			.collect(Collectors.toList());
     	
     	// main logic
@@ -502,7 +503,7 @@ public class TLC {
     		for (OpDefNode n : moduleNodes) {
     			final Set<String> untouchedStateVars = Utils.setMinus(allVars, vars);
     			// Step 1
-				final Set<String> additionalVars = n.stateVarsThatOccurInVars(untouchedStateVars, vars);
+				final Set<String> additionalVars = n.stateVarsThatOccurInVars(untouchedStateVars, vars, moduleNodes);
 				if (!vars.containsAll(additionalVars)) {
 					reachedFixPoint = false; // Step 2
 					vars.addAll(additionalVars);

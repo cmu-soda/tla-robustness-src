@@ -56,6 +56,8 @@ import util.UniqueString;
  *                isBdedQuantATuple, getBdedQuantBounds
  */
 public class OpApplNode extends ExprNode implements ExploreNode {
+	
+  private boolean isSetMalformed = false;
 
   protected SymbolNode        operator;
      // operator being applied to the operands
@@ -231,6 +233,30 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public void removeMalformedChildren() {
+	  // we want to remove at the conjunct/disjunct level ideally
+	  if (this.operands != null) {
+		  this.operands = Utils.toArrayList(this.operands)
+				  .stream()
+				  .filter(o -> !o.isMalformed())
+				  .toArray(ExprOrOpArgNode[]::new);
+	  }
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeMalformedChildren();
+		  }
+	  }
+  }
+  
+  @Override
+  public boolean isMalformed() {
+	  return !isCorrectlyFormed() ||
+			  Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> c.isMalformed());
+  }
+  
+  @Override
   public void stateVarVisit(Set<String> vars) {
 	  final SymbolNode op = this.getOperator();
 	  if (op.getKind() == VariableDeclKind) {
@@ -247,22 +273,12 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
-  public void removeChildNodes(final Set<? extends SemanticNode> toRemove) {
-	  if (getChildren() != null) {
-		  this.operands = Utils.toArrayList(this.operands)
-				  .stream()
-				  .filter(d -> !toRemove.contains(d))
-				  .toArray(ExprOrOpArgNode[]::new);
-		  
-		  for (SemanticNode n : getChildren()) {
-			  n.removeChildNodes(toRemove);
-		  }
-	  }
-  }
-  
-  @Override
   public void removeChildrenWithName(final Set<String> toRemove) {
 	  if (getChildren() != null) {
+		  final SymbolNode opNode = this.getOperator();
+		  final String opKey = opNode.getName().toString();
+		  
+		  final int origLen = this.operands.length;
 		  this.operands = Utils.toArrayList(this.operands)
 				  .stream()
 				  .filter(d -> {
@@ -274,6 +290,15 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 					  return true;
 				  })
 				  .toArray(ExprOrOpArgNode[]::new);
+		  
+		  // function appl with just 1 arg is a state var..so we need to track that this causes an issue
+		  // op calls with with fewer calls will be an error that we can't detect later, so track this too
+		  // we can detect other op errors later, afaik
+		  if (isFcnApply(opKey) || isOpCall(opKey)) {
+			  if (this.operands.length < origLen) {
+				  isSetMalformed = true;
+			  }
+		  }
 		  
 		  for (SemanticNode n : getChildren()) {
 			  n.removeChildrenWithName(toRemove);
@@ -320,53 +345,6 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
-  public void removeConjunctsWithStateVars(final Set<String> vars) {
-	  if (getChildren() != null) {
-		  final SymbolNode opNode = this.getOperator();
-		  final String opKey = opNode.getName().toString();
-		  
-		  if (opKey.equals("$ConjList")) {
-			  this.operands = Utils.toArrayList(this.operands)
-			  	.stream()
-			  	.filter(c -> !c.containsStateVars(vars))
-			  	.toArray(ExprOrOpArgNode[]::new);
-		  }
-		  
-		  // notice we only remove the top level conjuncts, i.e. we don't recurse once we remove
-		  else {
-			  for (SemanticNode n : getChildren()) {
-				  n.removeConjunctsWithStateVars(vars);
-			  }
-		  }
-	  }
-  }
-  
-  @Override
-  public void removeStateVarsFromUnchangedTuples(final Set<String> vars) {
-	  final SymbolNode opNode = this.getOperator();
-	  final String opKey = opNode.getName().toString();
-	  if (isUnchangedOp(opKey)) {
-		  Utils.assertTrue(this.operands.length == 1, "UNCHANGED op should only be applied to a single arg!");
-		  final ExprOrOpArgNode child = this.operands[0];
-		  Utils.assertTrue(child instanceof OpApplNode, "UNCHANGED should be applied to an OpApplNode!");
-		  final OpApplNode childNode = (OpApplNode) child;
-		  final String childKey = childNode.getOperator().getName().toString();
-		  if (childKey.equals("$Tuple")) {
-			  childNode.operands = Utils.toArrayList(childNode.operands)
-					  .stream()
-					  .filter(e -> !e.containsStateVars(vars))
-					  .toArray(ExprOrOpArgNode[]::new);
-		  }
-	  }
-	  
-	  if (getChildren() != null) {
-		  for (SemanticNode n : getChildren()) {
-			  n.removeStateVarsFromUnchangedTuples(vars);
-		  }
-	  }
-  }
-  
-  @Override
   public boolean containsStateVars(final Set<String> vars) {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();
@@ -384,13 +362,42 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public boolean containsNodeOrDefWithName(final String name, final List<OpDefNode> moduleNodes) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (opKey.equals(name)) {
+		  return true;
+	  }
+	  
+	  // if the node is a user defined op then we need to search the def for state vars
+	  final List<OpDefNode> opDefinition = moduleNodes
+			  .stream()
+			  .filter(n -> opKey.equals(n.getName().toString()))
+			  .collect(Collectors.toList());
+	  Utils.assertTrue(opDefinition.size() <= 1, "Multiple moduleNodes with the same name is not possible!");
+	  final boolean isUserDefinedOp = opDefinition.size() > 0;
+	  if (isUserDefinedOp) {
+		  final OpDefNode defNode = opDefinition.get(0);
+		  final boolean defContainsNodeWithName = defNode.containsNodeOrDefWithName(name, moduleNodes);
+		  if (defContainsNodeWithName) {
+			  return true;
+		  }
+	  }
+	  
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeOrDefWithName(name, moduleNodes));
+  }
+  
+  @Override
   public boolean containsNodeWithName(final String name) {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();
-	  if (getChildren() == null || getChildren().length == 0) {
-		  if (opKey.equals(name)) {
-			  return true;
-		  }
+	  if (opKey.equals(name)) {
+		  return true;
 	  }
 	  if (getChildren() == null) {
 		  return false;
@@ -398,6 +405,21 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.containsNodeWithName(name));
+  }
+  
+  @Override
+  public boolean containsNodeWithAnyName(final Set<String> names) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (names.contains(opKey)) {
+		  return true;
+	  }
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeWithAnyName(names));
   }
   
   @Override
@@ -418,22 +440,23 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 
   @Override
   public boolean hasOnlyUnchangedConjuncts() {
-	  if (getChildren() != null) {
-		  final SymbolNode opNode = this.getOperator();
-		  final String opKey = opNode.getName().toString();
-		  if (opKey.equals("$ConjList")) {
-			  return Utils.toArrayList(getChildren())
-			  	.stream()
-			  	.allMatch(c -> c.hasUnchangedNode());
-		  }
-	  }
-	  
-	  if (getChildren() == null) {
+	  final SemanticNode[] children = getChildren();
+	  if (children == null) {
 		  return false;
 	  }
-	  return Utils.toArrayList(getChildren())
-			  .stream()
-			  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
+	  
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (opKey.equals("$ConjList")) {
+		  return Utils.toArrayList(getChildren())
+		  	.stream()
+		  	.allMatch(c -> c.hasUnchangedNode());
+	  }
+	  
+	  return children.length > 0 &&
+			  Utils.toArrayList(getChildren())
+				  .stream()
+				  .allMatch(c -> c.hasOnlyUnchangedConjuncts());
   }
   
   @Override
@@ -480,13 +503,13 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars) {
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> moduleNodes) {
 	  if (isExprNode(this.getOperator().getName().toString())) {
 		  if (this.containsStateVars(vars)) {
 			  // at least one of the state vars in <vars> occurs in this expr
 			  return notInVars
 					  .stream()
-					  .filter(v -> this.containsNodeWithName(v))
+					  .filter(v -> this.containsNodeOrDefWithName(v,moduleNodes))
 					  .collect(Collectors.toSet());
 		  }
 		  else {
@@ -501,12 +524,13 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  return Utils.toArrayList(getChildren())
 				  .stream()
 				  .reduce(vars,
-						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
 						  (n, m) -> Utils.union(n, m));
 	  }
   }
   
   private static boolean isExprNode(final String key) {
+	  // TODO there's several missing operators here
 	  return key.equals("=")
 			  || key.equals("/=")
 			  || key.equals("#")
@@ -521,10 +545,10 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  || key.equals("*")
 			  || key.equals("\\div")
 			  || key.equals("=>")
-			  || key.equals("$DisjList")
 			  || key.equals("\\union")
 			  || key.equals("\\intersect")
 			  || key.equals("\\in")
+			  || key.equals("\\notin")
 			  || key.equals("\\lnot");
   }
   
@@ -556,19 +580,26 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  
 		  // bounded quants + CHOOSE
 		  else if (isBoundedQuant(opKey) || isBoundedChoose(opKey)) {
-			  Utils.assertTrue(getChildren().length == 2, "Bounded quants should have two args!");
 			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
-			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
-			  final FormalParamNode[] params = paramsPerDomain[0];
+			  final ExprNode[] domainNodes = this.ranges;
+			  ArrayList<String> declList = new ArrayList<>();
+			  Utils.assertTrue(paramsPerDomain.length == domainNodes.length, "Length mismatch in bounded quant/choose between domains and params!");
 			  
-			  final String domain = getChildren()[0].toTLA(false);
-			  final String qvars = Utils.toArrayList(params)
-					  .stream()
-					  .map(p -> p.getName().toString())
-					  .collect(Collectors.joining(","));
-			  final String body = getChildren()[1].toTLA(pretty);
+			  for (int i = 0; i < domainNodes.length; ++i) {
+				  final String domain = domainNodes[i].toTLA(false);
+				  final String qvars = Utils.toArrayList(paramsPerDomain[i])
+						  .stream()
+						  .map(p -> p.getName().toString())
+						  .collect(Collectors.joining(","));
+				  final String decl = qvars + " \\in " + domain;
+				  declList.add(decl);
+			  }
+
+			  Utils.assertTrue(operands.length > 0, "Bounded quant/choose should have at least one operand for the body!");
+			  final String body = operands[0].toTLA(pretty);
 			  final String quantMatrixSep = pretty ? " :\n" : " : ";
-			  return op + " " + qvars + " \\in " + domain + quantMatrixSep + body;
+			  final String decls = String.join(", ", declList);
+			  return op + " " + decls + quantMatrixSep + body;
 		  }
 		  
 		  // prime op
@@ -693,7 +724,7 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  return "[" + body + "]";
 		  }
 		  
-		  // set comprehension
+		  // set comprehension (with domain first, i.e. {x \in D | C(x)})
 		  else if (isSubsetOf(opKey)) {
 			  Utils.assertTrue(getChildren().length == 2, "SubsetOf (set comprehension) must have exactly 2 args!");
 			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
@@ -707,6 +738,22 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 					  .collect(Collectors.joining(","));
 			  final String body = getChildren()[1].toTLA(false);
 			  return "{ " + qvars + " \\in " + domain + " : " + body + " }";
+		  }
+		  
+		  // set comprehension (with domain second, i.e. {E(x) | x \in D})
+		  else if (isSetOfAll(opKey)) {
+			  Utils.assertTrue(getChildren().length == 2, "SetOfAll (set comprehension) must have exactly 2 args!");
+			  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
+			  final FormalParamNode[] params = paramsPerDomain[0];
+			  
+			  final String domain = getChildren()[0].toTLA(false);
+			  final String qvars = Utils.toArrayList(params)
+					  .stream()
+					  .map(p -> p.getName().toString())
+					  .collect(Collectors.joining(","));
+			  final String expr = getChildren()[1].toTLA(false);
+			  return "{ " + expr + " : " + qvars + " \\in " + domain + " }";
 		  }
 		  
 		  // . operator for records
@@ -810,6 +857,10 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  return key.equals("$SubsetOf");
   }
   
+  private static boolean isSetOfAll(final String key) {
+	  return key.equals("$SetOfAll");
+  }
+  
   private static boolean isRcdSelect(final String key) {
 	  return key.equals("$RcdSelect");
   }
@@ -863,9 +914,11 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  || key.equals("=>")
 			  || key.equals("$ConjList")
 			  || key.equals("$DisjList")
+			  || key.equals("$CartesianProd")
 			  || key.equals("\\union")
 			  || key.equals("\\intersect")
 			  || key.equals("\\in")
+			  || key.equals("\\notin")
 			  || key.equals("\\land")
 			  || key.equals("\\lor");
   }
@@ -876,6 +929,8 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  return "/\\";
 	  case "$DisjList":
 		  return "\\/";
+	  case "$CartesianProd":
+		  return "\\X";
 	  case "$BoundedExists":
 		  return "\\E";
 	  case "$BoundedForall":
@@ -899,6 +954,161 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  default:
 		  return key;
 	  }
+  }
+  
+  private boolean isCorrectlyFormed() {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  
+	  if (isSetMalformed) {
+		  return false;
+	  }
+  
+	  // infix ops
+	  if (isInfixOp(opKey)) {
+		  if (opKey.equals("$ConjList") || opKey.equals("$DisjList")) {
+			  return getChildren().length >= 1;
+		  }
+		  return getChildren().length >= 2;
+	  }
+	  
+	  // bounded quants + CHOOSE
+	  else if (isBoundedQuant(opKey) || isBoundedChoose(opKey)) {
+		  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+		  final ExprNode[] domainNodes = this.ranges;
+		  return paramsPerDomain.length == domainNodes.length && operands.length > 0;
+	  }
+	  
+	  // prime op
+	  else if (isPrimeOp(opKey)) {
+		  return getChildren().length == 1;
+	  }
+
+	  // UNCHANGED op
+	  else if (isUnchangedOp(opKey)) {
+		  return getChildren().length == 1;
+	  }
+
+	  // logical NOT op
+	  else if (isNotOp(opKey)) {
+		  return getChildren().length == 1;
+	  }
+	  
+	  // tuples
+	  else if (isTupleOp(opKey)) {
+		  return true;
+	  }
+	  
+	  // set enumeration op
+	  else if (isSetEnumerateOp(opKey)) {
+		  return true;
+	  }
+	  
+	  // create a sequence
+	  else if (isSeq(opKey)) {
+		  return true;
+	  }
+	  
+	  // record constructor
+	  else if (isRcdConstructor(opKey)) {
+		  return true;
+	  }
+	  
+	  // function application op
+	  else if (isFcnApply(opKey)) {
+		  final int numChildren = getChildren().length;
+		  return numChildren == 1 || numChildren == 2;
+	  }
+	  
+	  // EXCEPT op
+	  else if (isExcept(opKey)) {
+		  return getChildren().length == 2;
+	  }
+	  
+	  // pair, I guess an equality?
+	  else if (isPair(opKey)) {
+		  return getChildren().length == 2;
+	  }
+	  
+	  // function constructor, I'll assume a constant value for now
+	  else if (isFcnConstructor(opKey)) {
+		  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+		  return getChildren().length == 2 && paramsPerDomain.length == 1;
+	  }
+	  
+	  // set of functions
+	  else if (isSetOfFcns(opKey)) {
+		  return getChildren().length == 2;
+	  }
+	  
+	  // set of records
+	  else if (isSetOfRcds(opKey)) {
+		  return true;
+	  }
+	  
+	  // set comprehension (with domain first, i.e. {x \in D | C(x)})
+	  else if (isSubsetOf(opKey)) {
+		  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+		  return getChildren().length == 2 && paramsPerDomain.length == 1;
+	  }
+	  
+	  // set comprehension (with domain second, i.e. {E(x) | x \in D})
+	  else if (isSetOfAll(opKey)) {
+		  final FormalParamNode[][] paramsPerDomain = getBdedQuantSymbolLists();
+		  return getChildren().length == 2 && paramsPerDomain.length == 1;
+	  }
+	  
+	  // . operator for records
+	  else if (isRcdSelect(opKey)) {
+		  return getChildren().length == 2;
+	  }
+	  
+	  // IF-THEN-ELSE
+	  else if (isITE(opKey)) {
+		  return getChildren().length == 3;
+	  }
+	  
+	  // inside of the [] temporal op
+	  else if (isSquareAct(opKey)) {
+		  return getChildren().length == 2;
+	  }
+	  
+	  // [] temporal op
+	  else if (isAlwaysTemporalOp(opKey)) {
+		  return getChildren().length == 1;
+	  }
+	  
+	  // either:
+	  // 1) this is an operator call or
+	  // 2) this is something unexpected, and we print it like an operator call
+	  else {
+		  return true;
+	  }
+  }
+  
+  private static boolean isOpCall(final String opKey) {
+	  return !(isInfixOp(opKey)
+			  || isBoundedQuant(opKey)
+			  || isBoundedChoose(opKey)
+			  || isPrimeOp(opKey)
+			  || isUnchangedOp(opKey)
+			  || isNotOp(opKey)
+			  || isTupleOp(opKey)
+			  || isSetEnumerateOp(opKey)
+			  || isSeq(opKey)
+			  || isRcdConstructor(opKey)
+			  || isFcnApply(opKey)
+			  || isExcept(opKey)
+			  || isPair(opKey)
+			  || isFcnConstructor(opKey)
+			  || isSetOfFcns(opKey)
+			  || isSetOfRcds(opKey)
+			  || isSubsetOf(opKey)
+			  || isSetOfAll(opKey)
+			  || isRcdSelect(opKey)
+			  || isITE(opKey)
+			  || isSquareAct(opKey)
+			  || isAlwaysTemporalOp(opKey));
   }
 
   /**

@@ -58,25 +58,41 @@ public class LTSBuilder {
     	final LTSBState lbsSrc = new LTSBState(src);
     	final String strAct = act.actionNameWithParams();
     	final LTSBState lbsDst = new LTSBState(dst);
-    	this.allActions.add(strAct);
-    	this.goodTransitions.add(new Triple<>(lbsSrc, strAct, lbsDst));
+    	final Triple<LTSBState,String,LTSBState> transition = new Triple<>(lbsSrc, strAct, lbsDst);
     	
-    	// ensures that we construct only incomplete deterministic automata
-    	final Pair<LTSBState,String> partial = new Pair<>(lbsSrc, strAct);
-    	Utils.assertTrue(!partialTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
-    	partialTransitions.add(partial);
+    	if (!this.goodTransitions.contains(transition)) {
+        	this.allActions.add(strAct);
+        	this.goodTransitions.add(transition);
+        	
+        	// ensures that we construct only incomplete deterministic automata
+        	final Pair<LTSBState,String> partial = new Pair<>(lbsSrc, strAct);
+        	Utils.assertTrue(!partialTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
+        	partialTransitions.add(partial);
+        	
+        	// actually, we can just ignore this transition. it's fine to merge all transitions into a bad one in this case.
+        	// to ignore this properly we would need to check in the 'if' on line 63, otherwise we'll add the transition to goodTransitions
+        	// and to partialTransitions.
+        	Utils.assertTrue(!badTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
+    	}
     }
 
     public void addTransitionToErr(final TLCState src, final Action act) {
     	final LTSBState lbsSrc = new LTSBState(src);
     	final String strAct = act.actionNameWithParams();
-    	this.allActions.add(strAct);
-    	this.badTransitions.add(new Pair<>(lbsSrc, strAct));
-
-    	// ensures that we construct only incomplete deterministic automata
     	final Pair<LTSBState,String> partial = new Pair<>(lbsSrc, strAct);
-    	Utils.assertTrue(!partialTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
-    	partialTransitions.add(partial);
+    	
+    	if (!this.badTransitions.contains(partial)) {
+        	this.allActions.add(strAct);
+        	this.badTransitions.add(partial);
+
+        	// actually, this is unneeded. we can replace it with the commented out code below!
+        	Utils.assertTrue(!partialTransitions.contains(partial), "The current component is NOT an incomplete deterministic automata!");
+        	/*if (partialTransitions.contains(partial)) {
+        		this.partialTransitions.remove(partial);
+        		// need to somehow implement the line of code below efficiently, probably just this.goodTransitions.stream()
+        		//this.goodTransitions.remove(new Triple<>(lbsSrc, strAct, lbsDst));
+        	}*/
+    	}
     }
 
     public LTS<Integer, String> toIncompleteDetAutIncludingAnErrorState() {

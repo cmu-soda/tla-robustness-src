@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -66,6 +67,15 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
+  public void removeMalformedChildren() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeMalformedChildren();
+		  }
+	  }
+  }
+  
+  @Override
   public void removeUnusedLetDefs() {
 	  // find defs that are used in later LET defs, not just used in the body
 	  Set<SymbolNode> defsUsedInLaterLetDef = new HashSet<>();
@@ -97,36 +107,36 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
-  public void removeConjunctsWithStateVars(final Set<String> vars) {
+  public void removeChildrenWithName(final Set<String> toRemove) {
 	  final Set<String> removedDefs = Utils.toArrayList(this.opDefs)
 		.stream()
-		.filter(d -> d.containsStateVars(vars))
+		.filter(d -> d.containsNodeWithAnyName(toRemove))
 		.map(d -> d.getName().toString())
 		.collect(Collectors.toSet());
 	  this.opDefs = Utils.toArrayList(this.opDefs)
 	  	.stream()
-	  	.filter(c -> !c.containsStateVars(vars))
+	  	.filter(c -> !c.containsNodeWithAnyName(toRemove))
 	  	.toArray(SymbolNode[]::new);
 	  
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
-			  n.removeConjunctsWithStateVars(removedDefs);
-			  n.removeConjunctsWithStateVars(vars);
+			  n.removeChildrenWithName(removedDefs);
+			  n.removeChildrenWithName(toRemove);
 		  }
 	  }
   }
   
   @Override
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars) {
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> moduleNodes) {
 	  final Set<String> additionalVarsInDefs = Utils.toArrayList(this.opDefs)
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
 					  (n, m) -> Utils.union(n, m));
 	  final Set<String> additionalVarsInBody = Utils.toArrayList(getChildren())
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars)),
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
 					  (n, m) -> Utils.union(n, m));
 	  return Utils.union(additionalVarsInDefs, additionalVarsInBody);
   }
