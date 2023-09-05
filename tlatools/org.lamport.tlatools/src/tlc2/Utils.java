@@ -85,6 +85,13 @@ public class Utils {
 	
 	/* Because assert() doesn't seem to work */
 	
+	public static void exitAssert(final boolean condition, final String msg) {
+		if (!condition) {
+			System.err.println("\nexitAssert failed with message: " + msg);
+			System.exit(1);
+		}
+	}
+	
 	public static void assertTrue(final boolean condition, final String msg) {
 		if (!condition) {
 			System.err.println("\n\n!!! assertTrue failed with message: " + msg + "\n\n");

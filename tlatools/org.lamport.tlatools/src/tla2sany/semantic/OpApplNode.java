@@ -599,7 +599,13 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  final String body = operands[0].toTLA(pretty);
 			  final String quantMatrixSep = pretty ? " :\n" : " : ";
 			  final String decls = String.join(", ", declList);
-			  return op + " " + decls + quantMatrixSep + body;
+			  
+			  if (pretty) {
+				  return op + " " + decls + quantMatrixSep + body;
+			  }
+			  else {
+				  return "(" + op + " " + decls + quantMatrixSep + body + ")";
+			  }
 		  }
 		  
 		  // prime op
@@ -731,11 +737,13 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  Utils.assertTrue(paramsPerDomain.length == 1, "We currently only support quantification over a single domain at a time.");
 			  final FormalParamNode[] params = paramsPerDomain[0];
 			  
-			  final String domain = getChildren()[0].toTLA(false);
-			  final String qvars = Utils.toArrayList(params)
+			  final boolean qvarsAreInATuple = tupleOrs.length > 0 && tupleOrs[0];
+			  final String rawQvars = Utils.toArrayList(params)
 					  .stream()
 					  .map(p -> p.getName().toString())
 					  .collect(Collectors.joining(","));
+			  final String qvars = qvarsAreInATuple ? "<<" + rawQvars + ">>" : rawQvars;
+			  final String domain = getChildren()[0].toTLA(false);
 			  final String body = getChildren()[1].toTLA(false);
 			  return "{ " + qvars + " \\in " + domain + " : " + body + " }";
 		  }

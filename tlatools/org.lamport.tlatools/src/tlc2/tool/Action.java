@@ -72,16 +72,21 @@ public final class Action implements ToolGlobals, Serializable {
 	  return new String(c);
   }
   
-  public String actionNameWithParams() {
-	  // add param values to the action
+  public String actionParams() {
 	  final Map<String, Value> mp = this.con.toStrMap();
-	  final String actSuffix = Utils.toArrayList(getOpDef().getParams())
+	  return Utils.toArrayList(getOpDef().getParams())
 			  .stream()
 		      .map(p -> p.getSignature()) // the signature is a key for the param value
 		      .map(k -> mp.get(k)) // look up the param value from the key
 		      .map(v -> v.toString().replace("\"", "")) // turn the value into a string
-		      .collect(Collectors.joining("_"));
-	  return this.actionNameWithoutPrams() + "_" + actSuffix;
+		      .collect(Collectors.joining("."));
+  }
+  
+  public String actionNameWithParams() {
+	  // add param values to the action
+	  final String actName = this.actionNameWithoutPrams();
+	  final String actSuffix = this.actionParams();
+	  return actSuffix.isEmpty() ? actName : actName + "." + actSuffix;
   }
 
 /* Returns a string representation of this action.  */

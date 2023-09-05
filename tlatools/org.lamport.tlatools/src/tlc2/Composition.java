@@ -30,6 +30,7 @@ import net.automatalib.util.automata.builders.AutomatonBuilders;
 import net.automatalib.util.minimizer.Block;
 import net.automatalib.util.minimizer.MinimizationResult;
 import net.automatalib.util.minimizer.Minimizer;
+import net.automatalib.words.Word;
 import net.automatalib.words.impl.Alphabets;
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpDefNode;
@@ -92,7 +93,7 @@ public class Composition {
 		System.out.println("Component 1" + ": " + firstComp);
     	TLC tlcFirstComp = new TLC();
     	timer.reset();
-    	tlcFirstComp.modelCheckOnlyGoodStates(firstComp, cfg);
+    	tlcFirstComp.modelCheckOnlyGoodStates(firstComp, cfg); // TODO there's really no reason to distinguish between the 2 methods
     	System.out.println("State space gen: " + timer.timeElapsed() + "ms");
     	Utils.assertNotNull(tlcFirstComp.getLTSBuilder(), "Error generating state space for the first component!");
     	
@@ -103,12 +104,18 @@ public class Composition {
     	System.out.println("# unique states: " + (ltsProp.size()-1) + " states");
     	int totalSumOfStatesChecked = ltsProp.size() - 1;
     	int largestProductOfStatesChecked = ltsProp.size() - 1;
+    	//System.out.println();
+    	//FSPWriter.INSTANCE.write(System.out, ltsProp);
+    	//System.out.println();
     	
     	// minimize the LTS
     	timer.reset();
     	ltsProp = minimizeLTS(ltsProp);
     	System.out.println("minimization: " + timer.timeElapsed() + "ms");
     	System.out.println("# unique states post-minimization: " + (ltsProp.size()-1) + " states");
+    	
+    	// initialize the alphabet
+    	AlphabetMembershipTester alphabetTester = new AlphabetMembershipTester(actionNamesInSpec(tlcFirstComp), ltsProp);
     	
     	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
     		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
@@ -137,7 +144,7 @@ public class Composition {
     		
     		TLC tlcComp = new TLC();
     		timer.reset();
-        	tlcComp.modelCheck(comp, noInvsCfg);
+        	tlcComp.modelCheck(comp, noInvsCfg, alphabetTester);
         	System.out.println("State space gen: " + timer.timeElapsed() + "ms");
         	Utils.assertNotNull(tlcComp.getLTSBuilder(), "Error generating state space for component " + compNum + "!");
         	
@@ -147,18 +154,25 @@ public class Composition {
         	System.out.println("LTS gen: " + timer.timeElapsed() + "ms");
         	System.out.println("# unique states: " + (ltsComp.size()-1) + " states");
         	totalSumOfStatesChecked += ltsComp.size() - 1;
+        	//System.out.println();
+        	//FSPWriter.INSTANCE.write(System.out, ltsComp);
+        	//System.out.println();
+        	
         	// minimize the LTS for the component
         	timer.reset();
         	ltsComp = minimizeLTS(ltsComp);
         	System.out.println("minimization: " + timer.timeElapsed() + "ms");
         	System.out.println("# unique states post-minimization: " + (ltsComp.size()-1) + " states");
+        	largestProductOfStatesChecked = Math.max(largestProductOfStatesChecked, ltsProp.size()-1);
         	
         	// create new safety property (interface requirement for all components seen so far)
     		timer.reset();
     		ltsProp = ParallelComposition.INSTANCE.parallel(ltsComp, ltsProp);
     		// TODO should we be minimizing ltsProp here now too?
     		System.out.println("New property gen (|| composition): " + timer.timeElapsed() + "ms");
-        	largestProductOfStatesChecked = Math.max(largestProductOfStatesChecked, ltsProp.size()-1);	
+        	
+        	// collect the alphabet
+        	alphabetTester.update(actionNamesInSpec(tlcComp), ltsProp);
     		
     		// if the new safety property is TRUE or FALSE then model checking is done
         	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
@@ -181,6 +195,13 @@ public class Composition {
 		System.out.println();
 		System.out.println("Total # states checked: " + totalNumStatesChecked);
 		System.out.println("Property may be violated.");
+		
+		// TODO print err trace on early exit too
+		final Word<String> trace = SafetyUtils.INSTANCE.findErrorTrace(ltsProp);
+		System.out.println("Error trace:");
+		for (final String act : trace) {
+			System.out.println("  " + act);
+		}
     }
     
     public static void decompVerifyUniform(String[] args) {
@@ -331,20 +352,36 @@ public class Composition {
     
     private static Set<String> stateVarsInSpec(final String tla, final String cfg) {
     	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC("sv_" + tla);
+    	TLC tlc = new TLC();
     	tlc.initialize(tla, cfg);
     	return tlc.stateVarsInSpec();
     }
     
     private static Set<String> actionsInSpec(final String tla, final String cfg) {
     	// initialize TLC, DO NOT run it though
-    	TLC tlc = new TLC("act_" + tla);
+    	TLC tlc = new TLC();
     	tlc.initialize(tla, cfg);
+    	return actionsInSpec(tlc);
+    }
+    
+    private static Set<String> actionsInSpec(final TLC tlc) {
     	final FastTool ft = (FastTool) tlc.tool;
-    	
     	return Utils.toArrayList(ft.getActions())
         		.stream()
         		.map(a -> a.getName().toString())
+        		.collect(Collectors.toSet());
+    }
+    
+    private static Set<String> actionNamesInSpec(final TLC tlc) {
+    	final FastTool ft = (FastTool) tlc.tool;
+    	return Utils.toArrayList(ft.getActions())
+        		.stream()
+        		.map(a -> a.getName().toString())
+        		.map(a -> {
+        			char c[] = a.toCharArray();
+        			c[0] = Character.toLowerCase(c[0]);
+        			return new String(c);
+        		})
         		.collect(Collectors.toSet());
     }
     
@@ -379,7 +416,14 @@ public class Composition {
         	++iter;
     	}
     	
-    	components.add("B" + (iter-1));
+    	if (iter > 1) {
+    		// we decomposed into at least two components
+        	components.add("B" + (iter-1));
+    	}
+    	else {
+    		// we were not able to decompose the spec. perform monolithic MCing
+    		components.add(tla);
+    	}
     	return components;
     }
     

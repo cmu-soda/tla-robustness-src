@@ -3,6 +3,7 @@
 package tla2sany.semantic;
 
 import java.util.Hashtable;
+import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -11,6 +12,7 @@ import tla2sany.explorer.ExploreNode;
 import tla2sany.explorer.ExplorerVisitor;
 import tla2sany.utilities.Strings;
 import tla2sany.xml.SymbolContext;
+import tlc2.Utils;
 
 public class AtNode extends ExprNode {
 
@@ -25,6 +27,11 @@ public class AtNode extends ExprNode {
     super(AtNodeKind, ecr.stn);
     this.exceptRef          = er;
     this.exceptComponentRef = ecr;
+  }
+  
+  @Override
+  protected String toTLA(boolean pretty) {
+	  return "@";
   }
 
   /**

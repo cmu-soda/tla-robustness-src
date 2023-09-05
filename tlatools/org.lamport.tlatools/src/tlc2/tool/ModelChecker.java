@@ -425,34 +425,39 @@ public class ModelChecker extends AbstractChecker
                     {
                     	return doNextSetErr(curState, succState, action);
 					}
-
-					final boolean inModel = (tool.isInModel(succState) && tool.isInActions(curState, succState));
-					boolean unseen = true;
-                    if (inModel)
-                    {
-						unseen = !isSeenState(curState, succState, action, worker, liveNextStates);
-					}
-					// Check if an unseen succState violates any invariant:
-                    if (unseen)
-                    {
-                    	if (doNextCheckInvariants(tool, curState, succState)) {
-                    		return true;
-                    	}
-					}
-                    // Check if the state violates any implied action. We need to do it
-                    // even if succState is not new.
-                    if (doNextCheckImplied(tool, curState, succState)) {
-                    	return true;
-                    }
-                    if (inModel && unseen) {
-						// The state is inModel, unseen and neither invariants
-						// nor implied actions are violated. It is thus eligible
-						// for further processing by other workers.
-                    	final boolean isGoodState = !invariantViolationIan(tool, curState, succState);
-                    	if (isGoodState || TLC.checkBadStates()) {
-    						this.theStateQueue.sEnqueue(succState);
-                    	}
-                    }
+                    
+                    final String actName = action.actionNameWithoutPrams();
+                	final String actSuffix = action.actionParams();
+              	    final String strAct = actSuffix.isEmpty() ? actName : actName + "." + actSuffix;
+                	if (!TLC.actionIsSuppressed(actName, strAct)) {
+                		final boolean inModel = (tool.isInModel(succState) && tool.isInActions(curState, succState));
+    					boolean unseen = true;
+                        if (inModel)
+                        {
+    						unseen = !isSeenState(curState, succState, action, worker, liveNextStates);
+    					}
+    					// Check if an unseen succState violates any invariant:
+                        if (unseen)
+                        {
+                        	if (doNextCheckInvariants(tool, curState, succState)) {
+                        		return true;
+                        	}
+    					}
+                        // Check if the state violates any implied action. We need to do it
+                        // even if succState is not new.
+                        if (doNextCheckImplied(tool, curState, succState)) {
+                        	return true;
+                        }
+                        if (inModel && unseen) {
+    						// The state is inModel, unseen and neither invariants
+    						// nor implied actions are violated. It is thus eligible
+    						// for further processing by other workers.
+                        	final boolean isGoodState = !invariantViolationIan(tool, curState, succState);
+                        	if (isGoodState || TLC.checkBadStates()) {
+        						this.theStateQueue.sEnqueue(succState);
+                        	}
+                        }
+                	}
 				}
 				// Must set state to null!!!
 				succState = null;

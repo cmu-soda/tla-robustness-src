@@ -18,6 +18,7 @@ import tlc2.LTSBuilder;
 import tlc2.StaticTimer;
 import tlc2.TLC;
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.MP;
 import tlc2.tool.fp.FPSet;
@@ -126,21 +127,28 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				setCurrentState(curState);
 
 				//StaticTimer.enter();
+				// TODO maybe make sure we haven't seen this state before we do all this work?
 				final Action[] actions = this.tlc.tool.getActions();
                 for (int i = 0; i < actions.length; ++i) {
                 	final Action action = actions[i];
-                	final StateVec succ = this.tool.getNextStates(action, curState);
-                	for (int j = 0; j < succ.size(); ++j) {
-                        final TLCState nextState = succ.elementAt(j);
-    					final boolean isGoodState = !isSuccStateBad(curState, nextState);
-                        LTSBuilder ltsBuilder = TLC.currentLTSBuilder();
-                        ltsBuilder.addState(nextState);
-                        if (isGoodState) {
-                        	ltsBuilder.addTransition(curState, action, nextState);
-        				}
-        				else {
-        					ltsBuilder.addTransitionToErr(curState, action);
-        				}
+                	final String actName = action.actionNameWithoutPrams();
+                	final String actSuffix = action.actionParams();
+              	    final String strAct = actSuffix.isEmpty() ? actName : actName + "." + actSuffix;
+                	
+                	if (!TLC.actionIsSuppressed(actName, strAct)) {
+                    	final StateVec succ = this.tool.getNextStates(action, curState);
+                    	for (int j = 0; j < succ.size(); ++j) {
+                            final TLCState nextState = succ.elementAt(j);
+        					final boolean isGoodState = !isSuccStateBad(curState, nextState);
+                            LTSBuilder ltsBuilder = TLC.currentLTSBuilder();
+                            ltsBuilder.addState(nextState);
+                            if (isGoodState) {
+                            	ltsBuilder.addTransition(curState, action, nextState);
+            				}
+            				else {
+            					ltsBuilder.addTransitionToErr(curState, action);
+            				}
+                    	}
                 	}
                 }
     			//StaticTimer.exit();
@@ -465,32 +473,37 @@ public final class Worker extends IdThread implements IWorker, INextStateFunctor
 				// be defined.
 				throw new InvariantViolatedException();
 			}
-			
-			// Check if state is excluded by a state or action constraint.
-			// Set the predecessor to make TLC!TLCGet("level") work in
-			// state constraints, i.e. isInModel.
-			final boolean inModel = (this.tool.isInModel(succState.setPredecessor(curState).setAction(action))
-					&& this.tool.isInActions(curState, succState));
-			
-			// Check if state is new or has been seen earlier.
-			boolean unseen = true;
-			if (inModel) {
-				unseen = !isSeenState(curState, succState, action);
-			}
-			//idardik this code does not work for properties right now, only invariants
-			//StaticTimer.enter();
-			TLC.currentLTSBuilder().addState(succState);
-			
-			if (inModel && unseen) {
-				// The state is inModel, unseen and neither invariants
-				// nor implied actions are violated. It is thus eligible
-				// for further processing by other workers.
-				final boolean isGoodState = !isSuccStateBad(curState, succState);
-				if (isGoodState || TLC.checkBadStates()) {
-					this.squeue.sEnqueue(succState);
-				}
-			}
-			//StaticTimer.exit();
+
+        	final String actName = action.actionNameWithoutPrams();
+        	final String actSuffix = action.actionParams();
+      	    final String strAct = actSuffix.isEmpty() ? actName : actName + "." + actSuffix;
+        	if (!TLC.actionIsSuppressed(actName, strAct)) {
+    			// Check if state is excluded by a state or action constraint.
+    			// Set the predecessor to make TLC!TLCGet("level") work in
+    			// state constraints, i.e. isInModel.
+    			final boolean inModel = (this.tool.isInModel(succState.setPredecessor(curState).setAction(action))
+    					&& this.tool.isInActions(curState, succState));
+    			
+    			// Check if state is new or has been seen earlier.
+    			boolean unseen = true;
+    			if (inModel) {
+    				unseen = !isSeenState(curState, succState, action);
+    			}
+    			//idardik this code does not work for properties right now, only invariants
+    			//StaticTimer.enter();
+    			TLC.currentLTSBuilder().addState(succState);
+    			
+    			if (inModel && unseen) {
+    				// The state is inModel, unseen and neither invariants
+    				// nor implied actions are violated. It is thus eligible
+    				// for further processing by other workers.
+    				final boolean isGoodState = !isSuccStateBad(curState, succState);
+    				if (isGoodState || TLC.checkBadStates()) {
+    					this.squeue.sEnqueue(succState);
+    				}
+    			}
+    			//StaticTimer.exit();
+        	}
 			return this;
 		} catch (Exception e) {
 			// We can't throw Exception here because it would violate the contract of

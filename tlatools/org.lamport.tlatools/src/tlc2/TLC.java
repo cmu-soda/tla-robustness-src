@@ -92,6 +92,8 @@ public class TLC {
 	
 	private static boolean modelCheckOnlyGoodStates = false;
 	
+	private static AlphabetMembershipTester alphabetTester = null;
+	
 	public static String getTlcKey() {
 		if (currentInstance == null) {
 			throw new RuntimeException("TLC.currentInstance is null!");
@@ -373,6 +375,12 @@ public class TLC {
     	TLC.modelCheckOnlyGoodStates = false;
     }
     
+    public void modelCheck(final String tla, final String cfg, AlphabetMembershipTester alphaTester) {
+    	TLC.alphabetTester = alphaTester;
+    	modelCheck(tla, cfg);
+    	TLC.alphabetTester = null;
+    }
+    
     public void modelCheck(final String tla, final String cfg) {
     	modelCheck(tla, cfg, true);
     }
@@ -436,6 +444,10 @@ public class TLC {
     
     public static boolean checkBadStates() {
     	return !TLC.modelCheckOnlyGoodStates;
+    }
+    
+    public static boolean actionIsSuppressed(final String pref, final String act) {
+    	return TLC.alphabetTester != null && TLC.alphabetTester.actionIsSuppressed(pref, act);
     }
     
     public LTSBuilder getLTSBuilder() {
