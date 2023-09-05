@@ -503,13 +503,13 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> moduleNodes) {
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
 	  if (isExprNode(this.getOperator().getName().toString())) {
 		  if (this.containsStateVars(vars)) {
 			  // at least one of the state vars in <vars> occurs in this expr
 			  return notInVars
 					  .stream()
-					  .filter(v -> this.containsNodeOrDefWithName(v,moduleNodes))
+					  .filter(v -> this.containsNodeOrDefWithName(v,defExpansionNodes))
 					  .collect(Collectors.toSet());
 		  }
 		  else {
@@ -524,7 +524,7 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  return Utils.toArrayList(getChildren())
 				  .stream()
 				  .reduce(vars,
-						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
+						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes)),
 						  (n, m) -> Utils.union(n, m));
 	  }
   }

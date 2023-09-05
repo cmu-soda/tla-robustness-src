@@ -127,16 +127,29 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> moduleNodes) {
+  public boolean hasOnlyUnchangedConjuncts() {
+	  if (this.body == null) {
+		  return false;
+	  }
+	  return this.body.hasOnlyUnchangedConjuncts();
+  }
+  
+  @Override
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
+	  List<OpDefNode> latestDefExpansionNodes = new ArrayList<>(defExpansionNodes);
 	  final Set<String> additionalVarsInDefs = Utils.toArrayList(this.opDefs)
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
+					  (acc, n) -> {
+						  final Set<String> rv = Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,latestDefExpansionNodes));
+						  latestDefExpansionNodes.add((OpDefNode) n);
+						  return rv;
+					  },
 					  (n, m) -> Utils.union(n, m));
 	  final Set<String> additionalVarsInBody = Utils.toArrayList(getChildren())
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,latestDefExpansionNodes)),
 					  (n, m) -> Utils.union(n, m));
 	  return Utils.union(additionalVarsInDefs, additionalVarsInBody);
   }

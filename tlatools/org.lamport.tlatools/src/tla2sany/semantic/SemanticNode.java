@@ -223,14 +223,14 @@ public abstract class SemanticNode
    * @param moduleNodes
    * @return
    */
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> moduleNodes) {
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
 	  if (getChildren() == null) {
 		  return new HashSet<String>();
 	  }
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,moduleNodes)),
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes)),
 					  (n, m) -> Utils.union(n, m));
   }
   
