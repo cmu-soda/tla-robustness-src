@@ -114,6 +114,19 @@ public class Utils {
 	}
 	
 	
+	public static String firstLetterToUpperCase(final String str) {
+		  char c[] = str.toCharArray();
+		  c[0] = Character.toUpperCase(c[0]);
+		  return new String(c);
+	}
+	
+	public static String firstLetterToLowerCase(final String str) {
+		  char c[] = str.toCharArray();
+		  c[0] = Character.toLowerCase(c[0]);
+		  return new String(c);
+	}
+	
+	
     public static <T> Set<T> union(Set<T> s1, Set<T> s2) {
     	Set<T> un = new HashSet<T>();
     	un.addAll(s1);

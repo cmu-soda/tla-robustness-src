@@ -196,13 +196,116 @@ public class Composition {
 		System.out.println("Total # states checked: " + totalNumStatesChecked);
 		System.out.println("Property may be violated.");
 		
-		// TODO print err trace on early exit too
+		// encode the sequence of actions that leads to an error in a new TLA+ file
+		// TODO write error trace for early termination
+		writeErrorTraceFile(tla, cfg, ltsProp);
+    	
+    	// not unix convention, but we use this to signal to the wrapper script that
+    	// it should produce an error trace
+    	System.exit(99);
+    }
+	
+	private static void writeErrorTraceFile(final String tla, final String cfg, final LTS<Integer, String> ltsProp) {
 		final Word<String> trace = SafetyUtils.INSTANCE.findErrorTrace(ltsProp);
-		System.out.println("Error trace:");
+		/*System.out.println("Error trace:");
 		for (final String act : trace) {
 			System.out.println("  " + act);
+		}*/
+		ArrayList<String> errFile = Utils.fileContents(tla);
+		int moduleIdx = -1;
+		for (int i = 0; i < errFile.size(); ++i) {
+			final String line = errFile.get(i);
+			//if (line.trim().matches("\\Q----\\E")) {
+			if (line.trim().substring(0, 4).equals("----")) {
+				moduleIdx = i;
+				errFile.set(i, "---- MODULE ErrTrace ----");
+				break;
+			}
 		}
-    }
+		
+		int extendsIdx = -1;
+		for (int i = 0; i < errFile.size(); ++i) {
+			final String line = errFile.get(i);
+			//if (line.trim().matches("\\Q----\\E")) {
+			if (line.contains("EXTENDS")) {
+				extendsIdx = i;
+				break;
+			}
+		}
+		if (extendsIdx >= 0) {
+			final String extLine = errFile.get(extendsIdx);
+			if (!extLine.contains("Naturals")) {
+				final String extWithNaturals = extLine + ", Naturals";
+				errFile.set(extendsIdx, extWithNaturals);
+			}
+		}
+		else {
+			errFile.add(moduleIdx+1, "EXTENDS Naturals");
+		}
+		
+		int eofIdx = errFile.size() - 1;
+		for ( ; eofIdx >= 0; --eofIdx) {
+			final String line = errFile.get(eofIdx);
+			// at least four consecutive ='s for the EOF
+			//if (line.trim().matches("\\Q====\\E")) {
+			if (line.trim().substring(0, 4).equals("====")) {
+				break;
+			}
+		}
+		Utils.assertTrue(eofIdx > 0, "Unable to find the EOF in the TLA+ file!");
+		
+		errFile.add(eofIdx++, "VARIABLE errCounter");
+		errFile.add(eofIdx++, "ErrInit ==");
+		errFile.add(eofIdx++, "    /\\ Init");
+		errFile.add(eofIdx++, "    /\\ errCounter = 0");
+		errFile.add(eofIdx++, "ErrNext ==");
+		errFile.add(eofIdx++, "    /\\ Next");
+		errFile.add(eofIdx++, "    /\\ errCounter' = errCounter + 1");
+		
+		int c = 0;
+		for (final String act : trace) {
+			final ArrayList<String> actParts = Utils.toArrayList(act.split("\\."));
+			Utils.assertTrue(actParts.size() > 0, "actParts has size 0!");
+			StringBuilder actBuilder = new StringBuilder();
+			actBuilder.append(actParts.get(0));
+			if (actParts.size() > 1) {
+				actParts.remove(0);
+				final String params = actParts
+					.stream()
+					.map(p -> {
+						try {
+							Integer.parseInt(p);
+						} catch (NumberFormatException e) {
+							return "\"" + p + "\"";
+						}
+						return p;
+					})
+					.collect(Collectors.joining(","));
+				actBuilder.append("(");
+				actBuilder.append(params);
+				actBuilder.append(")");
+			}
+			errFile.add(eofIdx++, "    /\\ (errCounter = " + c++ + ") => " + actBuilder.toString());
+		}
+		
+		errFile.add(eofIdx++, "    /\\ (errCounter = " + c + ") => FALSE");
+		errFile.add(eofIdx++, "ErrSpec == ErrInit /\\ [][ErrNext]_vars");
+		
+		final String errFileContents = String.join("\n", errFile);
+		Utils.writeFile("ErrTrace.tla", errFileContents);
+		
+		// write the cfg file
+		StringBuilder errCfg = new StringBuilder();
+		errCfg.append("SPECIFICATION ErrSpec");
+
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	FastTool ft = (FastTool) tlc.tool;
+    	for (final String inv : ft.getInvNames()) {
+    		errCfg.append("\nINVARIANT ").append(inv);
+    	}
+    	Utils.writeFile("ErrTrace.cfg", errCfg.toString());
+	}
     
     public static void decompVerifyUniform(String[] args) {
     	/*
@@ -377,11 +480,7 @@ public class Composition {
     	return Utils.toArrayList(ft.getActions())
         		.stream()
         		.map(a -> a.getName().toString())
-        		.map(a -> {
-        			char c[] = a.toCharArray();
-        			c[0] = Character.toLowerCase(c[0]);
-        			return new String(c);
-        		})
+        		//.map(a -> Utils.firstLetterToLowerCase(a))
         		.collect(Collectors.toSet());
     }
     

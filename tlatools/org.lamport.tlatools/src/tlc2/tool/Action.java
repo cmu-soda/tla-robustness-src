@@ -66,10 +66,9 @@ public final class Action implements ToolGlobals, Serializable {
   }
   
   public String actionNameWithoutPrams() {
-	  final String rawActName = this.getName().toString();
-	  char c[] = rawActName.toCharArray();
-	  c[0] = Character.toLowerCase(c[0]);
-	  return new String(c);
+	  //final String rawActName = this.getName().toString();
+	  //return Utils.firstLetterToLowerCase(rawActName);
+	  return this.getName().toString();
   }
   
   public String actionParams() {
