@@ -570,6 +570,48 @@ public class Composition {
     	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(varsThatMayChange);
     	return propertyVars;
     }
+
+    /**
+     * Calculates the vars from bSpec that occur as a guard in at least one action in the interface between aSpec and bSpec,
+     * i.e. intersection of their alphabets.
+     * @param aSpec
+     * @param bSpec
+     * @return
+     */
+    private static Set<String> calcPropertyVarsByGuards(final String aSpec, final String aCfg, final String bSpec, final String bCfg) {
+    	final Set<String> aActions = actionsInSpec(aSpec, aCfg);
+    	final Set<String> bActions = actionsInSpec(bSpec, bCfg);
+    	final Set<String> ifaceActions = Utils.intersection(aActions, bActions);
+    	
+    	TLC tlc = new TLC("b_" + bSpec);
+    	tlc.initialize(bSpec, bCfg);
+    	final FastTool ft = (FastTool) tlc.tool;
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = tlc.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+    			.filter(m -> !m.isStandardModule())
+    			.filter(m -> ifaceActions.contains(m.getName().toString()))
+    			.collect(Collectors.toList());
+    	
+    	// find vars that are occur as a guard in at least one action in ifaceActions in bSpec
+    	final Set<String> bVars = stateVarsInSpec(bSpec, bCfg);
+    	final Set<String> bVarsInGuards = bVars
+    			.stream()
+    			.filter(v -> {
+    				return moduleNodes
+    						.stream()
+    						.anyMatch(n -> n.varOccursInGuard(v));
+    			})
+    			.collect(Collectors.toSet());
+    	
+    	// also compute all vars that occur in the same expressions as varsThatMayChange
+    	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(bVarsInGuards);
+    	
+    	return propertyVars;
+    }
     
     private static void decompose(final String specName, final Set<String> keepVars, final String tla, final String cfg, boolean includeInvs) {
     	// initialize TLC, DO NOT run it though

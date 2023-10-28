@@ -481,6 +481,42 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public boolean varOccursInGuard(final String var) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (opKey.equals("$ConjList")) {
+		  // check each conjunct separately. do not consider UNCHANGED conjuncts though.
+		  return Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> !c.hasUnchangedNode() && c.containsNodeWithName(var) && !c.hasPrimedOp());
+	  }
+	  else {
+		  return Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> c.varOccursInGuard(var));
+	  }
+  }
+
+  @Override
+  public boolean hasPrimedOp() {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (isPrimeOp(opKey)) {
+		  return true;
+	  }
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasPrimedOp());
+  }
+  
+  @Override
   public boolean emptyNode() {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();

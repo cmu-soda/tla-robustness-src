@@ -200,6 +200,29 @@ public abstract class SemanticNode
   }
   
   /**
+   * Checks whether <var> occurs in a guarded conjunct in this node.
+   * @param var
+   * @return
+   */
+  public boolean varOccursInGuard(final String var) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.varOccursInGuard(var));
+  }
+  
+  public boolean hasPrimedOp() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasPrimedOp());
+  }
+  
+  /**
    * Returns whether this node is empty. Essentially, this node is a syntax error
    * or garbage and can be removed.
    * @return
