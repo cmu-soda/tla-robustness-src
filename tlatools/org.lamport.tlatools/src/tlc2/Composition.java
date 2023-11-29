@@ -17,6 +17,7 @@ import cmu.isr.ts.ParallelComposition;
 import cmu.isr.ts.lts.ltsa.LTSACall;
 import cmu.isr.ts.lts.ltsa.StringLTSInput;
 import cmu.isr.ts.lts.ltsa.StringLTSOutput;
+import cmu.isr.ts.nfa.HideUtils;
 import cmu.isr.ts.lts.CompactLTS;
 import cmu.isr.ts.lts.SafetyUtils;
 import cmu.isr.ts.lts.ltsa.FSPWriter;
@@ -164,6 +165,13 @@ public class Composition {
         	System.out.println("minimization: " + timer.timeElapsed() + "ms");
         	System.out.println("# unique states post-minimization: " + (ltsComp.size()-1) + " states");
         	largestProductOfStatesChecked = Math.max(largestProductOfStatesChecked, ltsProp.size()-1);
+        	
+        	// remove any actions that are now internal to ltsProp
+        	// TODO this technically is an abstraction method because later components may have the action
+        	// TODO this technique also gets rid of the info we need to produce counterexample traces
+        	//Set<String> ltsPropAlphabet = new HashSet<>(ltsProp.getInputAlphabet());
+        	//ltsPropAlphabet.removeAll(ltsComp.getInputAlphabet());
+        	//ltsProp = HideUtils.INSTANCE.hideManually(ltsProp, ltsPropAlphabet);
         	
         	// create new safety property (interface requirement for all components seen so far)
     		timer.reset();
