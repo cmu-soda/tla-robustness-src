@@ -389,7 +389,8 @@ public class RobustDiffRep {
     
     private static String toSeparatorModelString(final EKState tlaState, final Set<String> nonConstValueVars, final Map<String, StateVariable> varNamesMap) {
     	ArrayList<String> separatorConjuncts = new ArrayList<>();
-    	ArrayList<Pair<String,String>> stateAssignments = Utils.extractKeyValuePairsFromState(tlaState);
+    	Utils.assertTrue(false, "Methods is unsupported!");
+    	ArrayList<Pair<String,String>> stateAssignments = null; // Utils.extractKeyValuePairsFromState(tlaState);
     	for (Pair<String,String> assg : stateAssignments) {
     		final String var = assg.first;
     		final String val = assg.second;
