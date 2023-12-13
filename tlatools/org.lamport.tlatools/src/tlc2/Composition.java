@@ -2,12 +2,15 @@ package tlc2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import cmu.isr.assumption.SubsetConstructionGenerator;
 import cmu.isr.tolerance.utils.LtsUtils;
@@ -71,22 +74,297 @@ public class Composition {
     	
     	return new CompactLTS<>(compactNFA);
 	}
+	
+	private static List<String> interfaceOrdering(final List<String> rawComponents) {
+		if (rawComponents.isEmpty()) {
+			return rawComponents;
+		}
+		
+    	final String noInvsCfg = "no_invs.cfg";
+    	final List<Set<String>> alphabets = rawComponents
+    			.stream()
+    			.map(c -> actionsInSpec(c, noInvsCfg))
+    			.collect(Collectors.toList());
+    	
+    	// gather all components that use the interface of the current component Ci
+    	final Set<Integer> allIndices =
+    			IntStream
+    			.range(0, rawComponents.size())
+    		    .boxed()
+    		    .collect(Collectors.toSet());
+    	Set<String> alphSoFar = new HashSet<>();
+    	List<String> components = new ArrayList<>();
+    	Set<Integer> indicesInPlace = new HashSet<>();
+    	
+    	// place the first component at the front
+    	components.add(rawComponents.get(0));
+    	indicesInPlace.add(0);
+		alphSoFar.addAll(alphabets.get(0));
+    	
+    	// place all components
+    	while (!indicesInPlace.containsAll(allIndices)) {
+    		// find the components whose alphabet intersects with alphSoFar
+    		final Set<Integer> interfaceIndices = Utils.setMinus(allIndices, indicesInPlace)
+    				.stream()
+    				.filter(i -> !Utils.intersection(alphabets.get(i), alphSoFar).isEmpty())
+    				.collect(Collectors.toSet());
+    		if (interfaceIndices.isEmpty()) {
+    			// if no components intersect with the prior alphabet then it can't affect verification
+    			break;
+    		}
+    		interfaceIndices
+					.stream()
+					.forEach(i -> {
+						components.add(rawComponents.get(i));
+						alphSoFar.addAll(alphabets.get(i));
+					});
+			indicesInPlace.addAll(interfaceIndices);
+    	}
+    	
+    	return components;
+	}
+	
+	private static String makeIntoSpec(final String specName, final String specBody) {
+        final String specDecl = "--------------------------- MODULE " + specName + " ---------------------------";
+        final String endModule = "=============================================================================";
+        StringBuilder builder = new StringBuilder();
+        builder.append(specDecl).append("\n");
+        builder.append("\n");
+        builder.append(specBody);
+        builder.append("\n");
+        builder.append(endModule).append("\n");
+        return builder.toString();
+    }
     
-	public static void decompVerify(String[] args) {
+    private static List<String> decompForSymbolicCompose(String tla, String cfg, final List<List<String>> componentGroupings, boolean allComponents) {
+    	// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	
+    	// get state vars to decompose with
+    	
+    	List<String> components = new ArrayList<>();
+    	final int maxIter = allComponents ? componentGroupings.size()-1 : componentGroupings.size();
+    	int iter = 0;
+    	for (int i = 0; i < maxIter; ++i) {
+    		final String aSpec = "D" + iter;
+    		final String bSpec = "E" + iter;
+
+        	final Set<String> allVars = stateVarsInSpec(tla, cfg);
+        	final Set<String> propertyVars = componentGroupings.get(i)
+        			.stream()
+        			.map(c -> stateVarsInSpec(c, "no_invs.cfg"))
+        			.reduce((Set<String>) new HashSet<String>(),
+        					(acc, s) -> Utils.union(acc, s),
+        					(s, t) -> Utils.union(s, t));
+        	final Set<String> nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+    		
+    		slice(aSpec, propertyVars, tla, cfg, true);
+    		slice(bSpec, nonPropertyVars, tla, cfg, false);
+        	components.add(aSpec);
+        	
+        	final List<String> group = componentGroupings.get(i);
+        	final String composedStr = String.join(" || ", group);
+			System.err.println(aSpec + " = " + composedStr);
+			
+        	tla = bSpec;
+        	cfg = "no_invs.cfg";
+        	++iter;
+    	}
+    	
+    	if (iter > 0) {
+    		// we decomposed into at least two components
+    		if (allComponents) {
+        		final int finalIter = iter - 1;
+        		final String name = "E";
+            	components.add(name + finalIter);
+
+        		final int finalIdx = iter;
+            	final List<String> finalGroup = componentGroupings.get(finalIdx);
+            	final String composedStr = String.join(" || ", finalGroup);
+    			System.err.println(name + finalIter + " = " + composedStr);
+    		}
+    	}
+    	else {
+    		// we were not able to decompose the spec. perform monolithic MCing
+    		components.add(tla);
+    	}
+    	return components;
+    }
+	
+	private static List<String> symbolicComposeByTypeOK(final String tla, final String cfg, final List<String> rawComponents) {
+    	final String noInvsCfg = "no_invs.cfg";
+    	
+		// initialize TLC, DO NOT run it though
+    	TLC tlc = new TLC(tla);
+    	tlc.initialize(tla, cfg);
+    	final FastTool ft = (FastTool) tlc.tool;
+		final String moduleName = tlc.getModelName();
+		final ModuleNode mn = ft.getModule(moduleName);
+    	
+    	// find TypeOK, if it exists
+		final List<OpDefNode> typeOkModuleNodes = Utils.toArrayList(mn.getOpDefs())
+				.stream()
+				// only retain module for the .tla file
+				.filter(m -> m.getName().toString().toLowerCase().equals("typeok"))
+				.collect(Collectors.toList());
+		
+		Utils.assertTrue(typeOkModuleNodes.size() <= 1, "Multiple TypeOK definitions found in the Spec!");
+		if (typeOkModuleNodes.isEmpty()) {
+			System.err.println("No TypeOK in the Spec, can't apply heuristic 1");
+			return rawComponents;
+		}
+		final OpDefNode typeOkDef = typeOkModuleNodes.get(0);
+		
+		// group state variables by their type
+		final Map<String,String> varTypes = typeOkDef.collectTypesFromTypeOK(); // var -> type
+		final Collection<Set<String>> varGroupings = varTypes // set(set(var))
+				.entrySet()
+				.stream()
+				.collect(Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toSet())))
+				.values();
+		
+		// compose components whose variables have the same types
+		Map<String, Set<String>> componentStateVars = new HashMap<>();
+		for (final String c : rawComponents) {
+			componentStateVars.put(c, stateVarsInSpec(c, noInvsCfg));
+		}
+		
+		Set<String> groupedComponents = new HashSet<>();
+		final List<List<String>> componentGroupings = varGroupings
+				.stream()
+				.map(g -> {
+					final List<String> componentGroup = rawComponents
+							.stream()
+							.filter(c -> !groupedComponents.contains(c))
+							.filter(c -> !Utils.intersection(componentStateVars.get(c), g).isEmpty())
+							.collect(Collectors.toList());
+					groupedComponents.addAll(componentGroup);
+					return componentGroup;
+				})
+				.filter(g -> !g.isEmpty())
+				.collect(Collectors.toList());
+		
+		// make sure the c1 component (which contains the property vars) comes first
+		final String c1 = rawComponents.get(0);
+		for (final List<String> grouping : componentGroupings) {
+			final Set<String> groupingSet = grouping.stream().collect(Collectors.toSet());
+			if (groupingSet.contains(c1)) {
+				componentGroupings.remove(grouping);
+				componentGroupings.add(0, grouping);
+				break;
+			}
+		}
+		
+		return decompForSymbolicCompose(tla, cfg, componentGroupings, true);
+		
+		/*
+		List<String> components = new ArrayList<>();
+		final String baseFileName = "D";
+		for (int i = 0; i < componentGroupings.size(); ++i) {
+			final String groupFileName = baseFileName + i;
+			final String tlaGroupFileName = groupFileName + ".tla";
+			final List<String> group = componentGroupings.get(i);
+			
+			String prevComponent = group.get(0);
+			for (int j = 1; j < group.size(); ++j) {
+				final String nextComponent = group.get(j);
+				final String componentFileName = groupFileName + "_" + j;
+				final String tlaComponentFileName = componentFileName + ".tla";
+				
+				final String composedBody = ExtKripke.composeSpecs(prevComponent, noInvsCfg, nextComponent, noInvsCfg);
+				final String composed = makeIntoSpec(componentFileName, composedBody);
+				
+				Utils.writeFile(tlaComponentFileName, composed);
+				prevComponent = tlaComponentFileName;
+			}
+			
+			Utils.copyFile(prevComponent, tlaGroupFileName);
+			components.add(groupFileName);
+			
+			final String composedStr = String.join(" || ", group);
+			System.err.println(groupFileName + " = " + composedStr);
+		}
+		
+		return components;*/
+	}
+	
+	private static List<String> symbolicCompose(final String tla, final String cfg, boolean customSymComp, final List<String> rawComponents) {
+		//return symbolicComposeByTypeOK(tla, cfg, interfaceOrdering(rawComponents));
+		//return interfaceOrdering(symbolicComposeByTypeOK(tla, cfg, interfaceOrdering(rawComponents)));
+		//return interfaceOrdering(rawComponents);
+		//return rawComponents;
+		
+		// interfaceOrdering() trims unneeded components. Don't use the ordering, but do use it to trim components.
+		final Set<String> neededComponents = interfaceOrdering(rawComponents).stream().collect(Collectors.toSet());
+		final List<String> trimmedComponents = rawComponents
+				.stream()
+				.filter(c -> neededComponents.contains(c))
+				.collect(Collectors.toList());
+		final boolean allCompoments = trimmedComponents.size() == rawComponents.size();
+		
+		List<List<String>> groupings = new ArrayList<>();
+
+		// consensus_forall
+		//customGroupings.add(List.of("C1", "C5", "C3", "C2", "T5"));
+		//customGroupings.add(List.of("C4"));
+		
+		// custom grouping
+		if (customSymComp) {
+			Utils.fileContents("custom_sym_comp.csv")
+				.stream()
+				.map(l -> Utils.toArrayList(l.split(",")))
+				.map(a -> a.stream().map(c -> c.trim()).collect(Collectors.toList()))
+				.forEach(a -> groupings.add(a));
+			
+			// sanity check
+			final Set<String> rawCmptSet = trimmedComponents.stream().collect(Collectors.toSet());
+			final Set<String> grCmptSet = groupings
+					.stream()
+					.reduce((Set<String>) new HashSet<String>(),
+							(acc, g) -> Utils.union(acc, g.stream().collect(Collectors.toSet())),
+							(s, t) -> Utils.union(s, t));
+			if (!grCmptSet.equals(rawCmptSet)) {
+				// some extra debugging info for the user
+				System.err.println("Components expected:");
+				for (String s : rawCmptSet) {
+					System.err.println("  " + s);
+				}
+				System.err.println("Components seen:");
+				for (String s : grCmptSet) {
+					System.err.println("  " + s);
+				}
+				Utils.assertTrue(false, "Invalid custom grouping!");
+			}
+		}
+		// default grouping
+		else {
+			for (final String c : trimmedComponents) {
+				groupings.add(List.of(c));
+			}
+		}
+		
+		return decompForSymbolicCompose(tla, cfg, groupings, allCompoments);
+	}
+    
+	public static void decompVerify(String[] args, boolean customSymComp) {
     	final String tla = args[1];
     	final String cfg = args[2];
     	
     	PerfTimer timer = new PerfTimer();
     	SymbolTable.init();
     	
-    	// temporary hack
+    	// write a config without any invariants / properties
     	final String noInvsCfg = "no_invs.cfg";
     	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
     	
     	// decompose the spec into as many components as possible
-    	final List<String> components = decompAll(tla, cfg);
-    	Utils.assertTrue(components.size() > 0, "Decomposition returned no components");
-    	System.out.println("# components: " + components.size());
+    	final List<String> rawComponents = decompAll(tla, cfg);
+    	final List<String> components = symbolicCompose(tla, cfg, customSymComp, rawComponents);
+    	Utils.assertTrue(rawComponents.size() > 0, "Decomposition returned no components");
+    	Utils.assertTrue(components.size() > 0, "Symbolic composition returned no components");
+    	System.out.println("n: " + rawComponents.size());
+    	System.out.println("m: " + (components.size() - 1));
     	
     	// model check the first component
     	final String firstComp = components.get(0);
@@ -509,15 +787,22 @@ public class Composition {
     	List<String> components = new ArrayList<>();
     	int iter = 1;
     	while (propertyVars.size() > 0 && nonPropertyVars.size() > 0) {
-    		final String aSpec = "A" + iter;
-    		final String bSpec = "B" + iter;
-    		decompose(aSpec, propertyVars, tla, cfg, true);
-        	decompose(bSpec, nonPropertyVars, tla, cfg, false);
+    		final String aSpec = "C" + iter;
+    		final String bSpec = "T" + iter;
+    		slice(aSpec, propertyVars, tla, cfg, true);
+    		slice(bSpec, nonPropertyVars, tla, cfg, false);
         	components.add(aSpec);
         	
-        	allVars = stateVarsInSpec(bSpec, "no_invs.cfg");
-        	propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg");
+        	allVars = nonPropertyVars;
+        	//propertyVars = calcPropertyVars(aSpec, "no_invs.cfg", bSpec, "no_invs.cfg", true);
+        	propertyVars = minimalPartition(bSpec, "no_invs.cfg");
         	nonPropertyVars = Utils.setMinus(allVars, propertyVars);
+        	
+        	// sanity checks
+        	Utils.assertTrue(allVars.equals(stateVarsInSpec(bSpec, "no_invs.cfg")), "allVars != stateVarsInSpec()");
+        	Utils.assertTrue(Utils.union(propertyVars, nonPropertyVars).equals(allVars), "allVars != propertyVars \\cup nonPropertyVars");
+        	Utils.assertTrue(Utils.intersection(propertyVars, nonPropertyVars).isEmpty(), "propertyVars \\cap nonPropertyVars # {}");
+        	
         	tla = bSpec;
         	cfg = "no_invs.cfg";
         	++iter;
@@ -525,7 +810,7 @@ public class Composition {
     	
     	if (iter > 1) {
     		// we decomposed into at least two components
-        	components.add("B" + (iter-1));
+        	components.add("T" + (iter-1));
     	}
     	else {
     		// we were not able to decompose the spec. perform monolithic MCing
@@ -534,15 +819,25 @@ public class Composition {
     	return components;
     }
     
+    private static Set<String> minimalPartition(final String bSpec, final String bCfg) {
+    	final Set<String> bVars = stateVarsInSpec(bSpec, bCfg);
+    	final Set<String> nextVarSet = Utils.setOf( Utils.chooseOne(bVars) );
+    	TLC tlc = new TLC("b_" + bSpec);
+    	tlc.initialize(bSpec, bCfg);
+    	return tlc.stateVarsUsedInSameExprs(nextVarSet); // Fix-Point(Occurs,nextVarSet)
+    }
+    
     /**
      * Calculates the vars from bSpec that /may/ be needed to uphold the guarantees of the interface
      * provided in aSpec. We perform this calculation by consider all variables in bSpec that are not
      * exclusively in UNCHANGED blocks in the mutual actions of aSpec and bSpec.
+     * If the parameter "minVars" is true, this method will choose the minimum vars needed to perform
+     * the next slice.
      * @param aSpec
      * @param bSpec
      * @return
      */
-    private static Set<String> calcPropertyVars(final String aSpec, final String aCfg, final String bSpec, final String bCfg) {
+    private static Set<String> calcPropertyVars(final String aSpec, final String aCfg, final String bSpec, final String bCfg, boolean minVars) {
     	final Set<String> aActions = actionsInSpec(aSpec, aCfg);
     	final Set<String> bActions = actionsInSpec(bSpec, bCfg);
     	final Set<String> ifaceActions = Utils.intersection(aActions, bActions);
@@ -573,9 +868,12 @@ public class Composition {
     	
     	// find the vars that may be changed in ifaceActions in bSpec
     	final Set<String> varsThatMayChange = Utils.setMinus(bVars, unchangedBVars);
+    	final Set<String> rawPropertyVars = minVars && !varsThatMayChange.isEmpty() ?
+    			Utils.setOf( Utils.chooseOne(varsThatMayChange) ) :
+    			varsThatMayChange;
     	
-    	// also compute all vars that occur in the same expressions as varsThatMayChange
-    	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(varsThatMayChange);
+    	// also compute all vars that occur in the same expressions as rawPropertyVars
+    	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(rawPropertyVars);
     	return propertyVars;
     }
 
@@ -621,7 +919,7 @@ public class Composition {
     	return propertyVars;
     }
     
-    private static void decompose(final String specName, final Set<String> keepVars, final String tla, final String cfg, boolean includeInvs) {
+    private static void slice(final String specName, final Set<String> keepVars, final String tla, final String cfg, boolean includeInvs) {
     	// initialize TLC, DO NOT run it though
     	TLC tlc = new TLC(specName);
     	tlc.initialize(tla, cfg);

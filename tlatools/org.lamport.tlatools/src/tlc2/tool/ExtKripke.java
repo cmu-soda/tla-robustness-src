@@ -115,9 +115,11 @@ public class ExtKripke {
 	}
 
 	private static boolean refinedImpliesAbstractState(final EKState refinedState, final EKState abstrState) {
-		final Set<Pair<String,String>> refinedKvPairs = new HashSet<>(Utils.extractKeyValuePairsFromState(refinedState));
+		/*final Set<Pair<String,String>> refinedKvPairs = new HashSet<>(Utils.extractKeyValuePairsFromState(refinedState));
 		final Set<Pair<String,String>> abstrKvPairs = new HashSet<>(Utils.extractKeyValuePairsFromState(abstrState));
-		return refinedKvPairs.containsAll(abstrKvPairs);
+		return refinedKvPairs.containsAll(abstrKvPairs);*/
+		Utils.assertTrue(false, "Method not supported!");
+		return false;
 	}
 
 	// pre-processing

@@ -39,6 +39,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import tlc2.Utils;
+
 public class ExecutionStatisticsCollector {
 
 	static final String RND_ID_STR = "RANDOM_IDENTIFIER";
@@ -122,12 +124,14 @@ public class ExecutionStatisticsCollector {
 
 		final File udcFile = new File(pathname);
 		if (!udcFile.exists() && isOptOut) {
+			Utils.assertTrue(false, "No longer supported!");
+			/*
 			try (BufferedWriter br = new BufferedWriter(new FileWriter(udcFile))) {
 				br.write(getRandomIdentifier());
 			} catch (Exception e) {
 				// Something went wrong writing to file ~/.tlaplus/esc.txt. Consider ESC failed.
 				return null;
-			}
+			}*/
 		}
 		if (!udcFile.exists()) {
 			// No file ~/.tlaplus/esc.txt.
@@ -167,11 +171,13 @@ public class ExecutionStatisticsCollector {
 		udcFile.getParentFile().mkdirs();
 		udcFile.createNewFile();
 		
+		Utils.assertTrue(false, "No longer supported!");
+		/*
 		try (BufferedWriter br = new BufferedWriter(new FileWriter(udcFile))) {
 			br.write(c.toString() + "\n");
 		} catch (IOException e) {
 			throw e;
-		}
+		}*/
 	}
 	
 	public Selection get() {

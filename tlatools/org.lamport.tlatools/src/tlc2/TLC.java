@@ -58,7 +58,6 @@ import tlc2.tool.management.TLCStandardMBean;
 import tlc2.util.DotStateWriter;
 import tlc2.util.FP64;
 import tlc2.util.IStateWriter;
-import tlc2.tool.ExtKripke;
 import tlc2.util.NoopStateWriter;
 import tlc2.util.RandomGenerator;
 import tlc2.util.StateWriter;
@@ -363,7 +362,13 @@ public class TLC {
 		}
 		
 		// only perform initialization, don't model check
-		tool = new FastTool(mainFile, configFile, resolver, params);
+		try {
+			tool = new FastTool(mainFile, configFile, resolver, params);
+		}
+		catch (Exception e) {
+			System.err.println("Error loading specification \"" + tla + "\" with config file \"" + cfg + "\"");
+			throw e;
+		}
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
@@ -947,6 +952,8 @@ public class TLC {
                 index++;
                 if (index < args.length)
                 {
+                	Utils.assertTrue(false, "No longer supported!");
+                	/*
                     try {
 						// Most problems will only show when TLC eventually tries
 						// to write to the file.
@@ -954,7 +961,7 @@ public class TLC {
         			} catch (IOException e) {
                         printErrorMsg("Error: Failed to create user output log file.");
                         return false;
-        			}
+        			}*/
                 } else
                 {
                     printErrorMsg("Error: need to specify the full qualified file.");

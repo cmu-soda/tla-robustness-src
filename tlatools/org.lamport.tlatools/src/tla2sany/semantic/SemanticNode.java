@@ -6,10 +6,12 @@ package tla2sany.semantic;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -68,6 +70,21 @@ public abstract class SemanticNode
       case TemporalLevel: return level + " (Temporal)";
       default:            return level + " (Illegal)";
     }
+  }
+  
+  public Map<String,String> collectTypesFromTypeOK() {
+	  // merge all maps
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(new HashMap<String,String>(),
+					  (acc, c) -> {
+						  acc.putAll(c.collectTypesFromTypeOK());
+						  return acc;
+					  },
+					  (m1, m2) -> {
+						 m1.putAll(m2);
+						 return m1;
+					  });
   }
   
   public boolean isMalformed() {
@@ -147,6 +164,15 @@ public abstract class SemanticNode
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.containsNodeOrDefWithName(name, moduleNodes));
+  }
+  
+  public boolean containsNodeOrDefWithNames(final Set<String> names, final List<OpDefNode> moduleNodes) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeOrDefWithNames(names, moduleNodes));
   }
   
   /**
@@ -247,13 +273,34 @@ public abstract class SemanticNode
    * @return
    */
   public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
+	  return stateVarsThatOccurInVars(notInVars, vars, defExpansionNodes, false);
+  }
+  
+  protected Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes, boolean inConjunct) {
 	  if (getChildren() == null) {
 		  return new HashSet<String>();
 	  }
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes)),
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes,inConjunct)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  /**
+   * WARNING: this method is untested.
+   * @param varNames
+   * @param defExpansionNodes
+   * @return
+   */
+  public Set<String> stateVarsInFormula(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce((Set<String>) new HashSet<String>(),
+					  (acc, n) -> Utils.union(acc, n.stateVarsInFormula(varNames,defExpansionNodes)),
 					  (n, m) -> Utils.union(n, m));
   }
   

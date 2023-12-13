@@ -16,10 +16,12 @@ package tla2sany.semantic;
 ***************************************************************************/
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -233,6 +235,37 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  public Map<String,String> collectTypesFromTypeOK() {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  
+	  Utils.assertTrue(!opKey.equals("\\subseteq"), "Must use \\in instead of \\subseteq for this heuristic!");
+	  
+	  // found the type definition
+	  if (opKey.equals("\\in")) {
+		  Utils.assertTrue(getChildren().length == 2, "\\in op should only be applied to two args!");
+		  final String var = getChildren()[0].toTLA(false);
+		  final String type = getChildren()[1].toTLA(false);
+		  Map<String,String> mp = new HashMap<>();
+		  mp.put(var, type);
+		  return mp;
+	  }
+	  
+	  // merge all maps
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(new HashMap<String,String>(),
+					  (acc, c) -> {
+						  acc.putAll(c.collectTypesFromTypeOK());
+						  return acc;
+					  },
+					  (m1, m2) -> {
+						 m1.putAll(m2);
+						 return m1;
+					  });
+  }
+  
+  @Override
   public void removeMalformedChildren() {
 	  // we want to remove at the conjunct/disjunct level ideally
 	  if (this.operands != null) {
@@ -274,6 +307,14 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   
   @Override
   public void removeChildrenWithName(final Set<String> toRemove) {
+	  // for bounded quants
+	  for (ExprNode n : this.ranges) {
+		  if (n.containsStateVars(toRemove)) {
+			  isSetMalformed = true;
+			  return;
+		  }
+	  }
+	  
 	  if (getChildren() != null) {
 		  final SymbolNode opNode = this.getOperator();
 		  final String opKey = opNode.getName().toString();
@@ -390,6 +431,37 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.containsNodeOrDefWithName(name, moduleNodes));
+  }
+  
+  @Override
+  public boolean containsNodeOrDefWithNames(final Set<String> names, final List<OpDefNode> moduleNodes) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (names.contains(opKey)) {
+		  return true;
+	  }
+	  
+	  // if the node is a user defined op then we need to search the def for state vars
+	  final List<OpDefNode> opDefinition = moduleNodes
+			  .stream()
+			  .filter(n -> opKey.equals(n.getName().toString()))
+			  .collect(Collectors.toList());
+	  Utils.assertTrue(opDefinition.size() <= 1, "Multiple moduleNodes with the same name is not possible!");
+	  final boolean isUserDefinedOp = opDefinition.size() > 0;
+	  if (isUserDefinedOp) {
+		  final OpDefNode defNode = opDefinition.get(0);
+		  final boolean defContainsNodeWithName = defNode.containsNodeOrDefWithNames(names, moduleNodes);
+		  if (defContainsNodeWithName) {
+			  return true;
+		  }
+	  }
+	  
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeOrDefWithNames(names, moduleNodes));
   }
   
   @Override
@@ -539,8 +611,20 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
-	  if (isExprNode(this.getOperator().getName().toString())) {
+  protected Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes, boolean inConjunct) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  final boolean enteredConjunct = inConjunct || opKey.equals("$ConjList");
+	  final boolean isLeaf = this.getChildren() == null || this.getChildren().length == 0;
+	  if (isExprNode(opKey) || (isBoundedQuant(opKey) && inConjunct) || isLeaf) {
+		  /*
+		  final Set<String> allStateVars = Utils.union(vars, notInVars);
+		  final Set<String> exprVars = this.stateVarsInFormula(allStateVars, defExpansionNodes);
+		  if (!Utils.intersection(vars, exprVars).isEmpty() && !Utils.intersection(notInVars, exprVars).isEmpty()) {
+			  return Utils.union(vars, Utils.intersection(notInVars, exprVars));
+		  }*/
+		  //if (this.containsNodeOrDefWithNames(vars,defExpansionNodes)) {
+		  
 		  if (this.containsStateVars(vars)) {
 			  // at least one of the state vars in <vars> occurs in this expr
 			  return notInVars
@@ -554,15 +638,47 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  }
 	  }
 	  else {
-		  if (getChildren() == null) {
-			  return new HashSet<String>();
-		  }
 		  return Utils.toArrayList(getChildren())
 				  .stream()
 				  .reduce(vars,
-						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes)),
+						  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes,enteredConjunct)),
 						  (n, m) -> Utils.union(n, m));
 	  }
+  }
+  
+  /**
+   * WARNING: this method is untested.
+   */
+  @Override
+  public Set<String> stateVarsInFormula(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  Set<String> vars = new HashSet<>();
+	  
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (varNames.contains(opKey)) {
+		  vars.add(opKey);
+	  }
+	  
+	  // if the node is a user defined op then we need to search the def for state vars
+	  final List<OpDefNode> opDefinition = defExpansionNodes
+			  .stream()
+			  .filter(n -> opKey.equals(n.getName().toString()))
+			  .collect(Collectors.toList());
+	  Utils.assertTrue(opDefinition.size() <= 1, "Multiple moduleNodes with the same name is not possible!");
+	  final boolean isUserDefinedOp = opDefinition.size() > 0;
+	  if (isUserDefinedOp) {
+		  final OpDefNode defNode = opDefinition.get(0);
+		  vars.addAll(defNode.stateVarsInFormula(varNames, defExpansionNodes));
+	  }
+	  
+	  if (getChildren() == null) {
+		  return vars;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsInFormula(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
   }
   
   private static boolean isExprNode(final String key) {
@@ -586,7 +702,8 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  || key.equals("\\intersect")
 			  || key.equals("\\in")
 			  || key.equals("\\notin")
-			  || key.equals("\\lnot");
+			  || key.equals("\\lnot")
+			  || key.equals("$IfThenElse");
   }
   
   @Override
@@ -601,13 +718,14 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  else {
 		  // infix ops
 		  if (isInfixOp(opKey)) {
-			  final String prefix = pretty ? op + " " : "";
-			  final String paddedOp = pretty ? "\n" + op + " " : " " + op + " ";
+			  final boolean usePretty = pretty && (op.equals("/\\") || op.equals("\\/"));
+			  final String prefix = usePretty ? op + " " : "";
+			  final String paddedOp = usePretty ? "\n" + op + " " : " " + op + " ";
 			  final String childrenToTLA = Utils.toArrayList(getChildren())
 			  	.stream()
 			  	.map(c -> c.toTLA(false))
 			  	.collect(Collectors.joining(paddedOp));
-			  if (!pretty && getChildren().length > 1 && !dontUseParens(op)) {
+			  if (!usePretty && getChildren().length > 1 && !dontUseParens(op)) {
 				  return "(" + prefix + childrenToTLA + ")";
 			  }
 			  else {

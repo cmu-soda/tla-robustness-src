@@ -38,7 +38,12 @@ public class Main {
     	
     	// invoke the Decomposition Verify algorithm to perform MC
     	else if (args.length == 3 && args[0].equals("--verif")) {
-        	Composition.decompVerify(args);
+        	Composition.decompVerify(args, false);
+    	}
+    	
+    	// invoke the Decomposition Verify algorithm to perform MC with a custom sym-com ordering
+    	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--sc")) {
+        	Composition.decompVerify(args, true);
     	}
     	
     	// invoke naive version of the Decomposition Verify algorithm to perform MC

@@ -1,9 +1,8 @@
 package tlc2;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,13 +13,6 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
-import tla2sany.semantic.OpDefNode;
-import tlc2.tool.Action;
-import tlc2.tool.EKState;
-import tlc2.tool.TLCState;
-import tlc2.value.impl.Value;
 
 public class Utils {
 	private static final String QUOTE = "\"";
@@ -156,11 +148,18 @@ public class Utils {
     	}
     	return elem;
     }
-	
     
-    public static ArrayList<Pair<String,String>> extractKeyValuePairsFromState(EKState tlaState) {
-    	return extractKeyValuePairsFromState(tlaState.toString());
+    public static <T> T chooseOne(Set<T> s) {
+    	Utils.assertTrue(!s.isEmpty(), "Called chooseOne() on an empty set");
+    	return s.iterator().next();
     }
+    
+    public static <T> Set<T> setOf(T elem) {
+    	Set<T> s = new HashSet<>();
+    	s.add(elem);
+    	return s;
+    }
+	
     
     public static ArrayList<Pair<String,String>> extractKeyValuePairsFromState(String tlaState) {
     	ArrayList<Pair<String,String>> kvPairs = new ArrayList<>();
@@ -356,13 +355,28 @@ public class Utils {
     
     public static void writeFile(String file, String contents) {
     	try {
-    		BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-    	    writer.write(contents);
+    		FileOutputStream writer = new FileOutputStream(file);
+    	    writer.write(contents.getBytes(), 0, contents.length());
     	    writer.close();
     	}
     	catch (IOException e) {
     		throw new RuntimeException("Failed to write to file: " + file + "!");
     	}
+    }
+    
+    public static void copyFile(String src, String dst) {
+    	try {
+  	      Scanner scan = new Scanner(new File(src));
+	  	  FileOutputStream writer = new FileOutputStream(dst);
+  	      while (scan.hasNextLine()) {
+  	        final String line = scan.nextLine() + "\n";
+		    writer.write(line.getBytes(), 0, line.length());
+  	      }
+  	      scan.close();
+		  writer.close();
+  	    } catch (IOException e) {
+  	      e.printStackTrace();
+  	    }
     }
     
     public static ArrayList<String> fileContents(String loc) {

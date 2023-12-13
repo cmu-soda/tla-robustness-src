@@ -135,23 +135,16 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
-  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
+  protected Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes, boolean inConjunct) {
 	  List<OpDefNode> latestDefExpansionNodes = new ArrayList<>(defExpansionNodes);
-	  final Set<String> additionalVarsInDefs = Utils.toArrayList(this.opDefs)
+	  Utils.toArrayList(this.opDefs)
+			  .stream()
+			  .forEach(n -> latestDefExpansionNodes.add((OpDefNode) n));
+	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .reduce(vars,
-					  (acc, n) -> {
-						  final Set<String> rv = Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,latestDefExpansionNodes));
-						  latestDefExpansionNodes.add((OpDefNode) n);
-						  return rv;
-					  },
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,latestDefExpansionNodes,inConjunct)),
 					  (n, m) -> Utils.union(n, m));
-	  final Set<String> additionalVarsInBody = Utils.toArrayList(getChildren())
-			  .stream()
-			  .reduce(vars,
-					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,latestDefExpansionNodes)),
-					  (n, m) -> Utils.union(n, m));
-	  return Utils.union(additionalVarsInDefs, additionalVarsInBody);
   }
   
   @Override
