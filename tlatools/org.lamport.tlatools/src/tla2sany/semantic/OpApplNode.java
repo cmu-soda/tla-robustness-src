@@ -799,12 +799,12 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  return "{" + childrenToTLA + "}";
 		  }
 		  
-		  // create a sequence
-		  else if (isSeq(opKey)) {
+		  // indexing into functions
+		  else if (isFunctionIndex(opKey)) {
 			  final String childrenToTLA = Utils.toArrayList(getChildren())
 					  	.stream()
 					  	.map(c -> c.toTLA(false))
-					  	.collect(Collectors.joining(","));
+					  	.collect(Collectors.joining("]["));
 					  return "[" + childrenToTLA + "]";
 		  }
 		  
@@ -984,7 +984,7 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  return key.equals("$SetEnumerate");
   }
   
-  private static boolean isSeq(final String key) {
+  private static boolean isFunctionIndex(final String key) {
 	  return key.equals("$Seq");
   }
   
@@ -1168,8 +1168,8 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 		  return true;
 	  }
 	  
-	  // create a sequence
-	  else if (isSeq(opKey)) {
+	  // function index
+	  else if (isFunctionIndex(opKey)) {
 		  return true;
 	  }
 	  
@@ -1259,7 +1259,7 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 			  || isNotOp(opKey)
 			  || isTupleOp(opKey)
 			  || isSetEnumerateOp(opKey)
-			  || isSeq(opKey)
+			  || isFunctionIndex(opKey)
 			  || isRcdConstructor(opKey)
 			  || isFcnApply(opKey)
 			  || isExcept(opKey)
