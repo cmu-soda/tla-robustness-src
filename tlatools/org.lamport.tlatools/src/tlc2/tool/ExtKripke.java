@@ -4,13 +4,16 @@
 package tlc2.tool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import tlc2.TLC;
 import tlc2.Utils;
@@ -635,6 +638,177 @@ public class ExtKripke {
     	}
     	final String fsp = initStateDef + ",\n" + String.join(",\n", nonInitStateDefs) + ".";
     	return fsp;
+    }
+    
+    private void tracesOfLength(final EKState state, final String traceSoFar, int len, Set<String> traces) {
+    	if (len <= 0) {
+    		final int lassoIdx = traceSoFar.split(";").length - 1;
+    		traces.add(traceSoFar + "::" + lassoIdx);
+    		return;
+    	}
+    	final List<Pair<String,String>> varVals = Utils.extractKeyValuePairsFromState(state);
+    	final List<String> vars = Arrays.asList("flag0","flag1","pc0_CS","pc0_a1","pc0_a2","pc0_a3",
+    			"pc0_a4","pc0_a5","pc1_CS","pc1_a1","pc1_a2","pc1_a3","pc1_a4","pc1_a5","turn");
+    	for (int i = 0; i < varVals.size(); ++i) {
+    		final String expectedVar = vars.get(i);
+    		final String actualVar = varVals.get(i).first;
+        	Utils.assertTrue(expectedVar.equals(actualVar), expectedVar + " is in the wrong position!");
+    	}
+		final String stateInTraceFormat = varVals
+				.stream()
+				.map(p -> p.second)
+				.map(v -> v.equals("1") || v.equals("TRUE") ? "1" : "0")
+				.collect(Collectors.joining(","));
+		final String newTraceSoFar = traceSoFar.isEmpty() ? stateInTraceFormat : traceSoFar + ";" + stateInTraceFormat;
+		
+		// TODO traces of length < maxTraceLen will be ignored/dropped
+		for (final EKState dst : this.succ(state)) {
+			if (!state.equals(dst)) {
+				tracesOfLength(dst, newTraceSoFar, len-1, traces);
+			}
+		}
+    }
+    
+    private String randomState(int numVars) {
+    	Random r = new Random();
+    	List<String> state = new ArrayList<>();
+    	for (int i = 0; i < numVars; ++i) {
+    		final int v = r.nextInt(2);
+    		state.add(v + "");
+    	}
+    	return String.join(",", state);
+    }
+    
+    private String randomTrace(int traceLen, int numVars) {
+    	List<String> trace = new ArrayList<>();
+    	for (int i = 0; i < traceLen; ++i) {
+    		trace.add(randomState(numVars));
+    	}
+    	return String.join(";", trace) + "::" + (traceLen - 1);
+    }
+    
+    private String randomlyMutatedTrace(final Set<String> posTraces) {
+		final String posTrace = Utils.getOneRandomElement(posTraces);
+		final String[] bodyRepeat = posTrace.split("::");
+		Utils.assertTrue(bodyRepeat.length == 2, "Invalid trace!");
+		final String body = bodyRepeat[0];
+		final String repeatIdx = bodyRepeat[1];
+		
+		final String[] states = body.split(";");
+		List<String> newStates = new ArrayList<>();
+		Random r = new Random();
+		for (int i = 0; i < states.length; ++i) {
+			final String state = states[i];
+			String[] vars = state.split(",");
+			final int mutIdx = r.nextInt(vars.length);
+			vars[mutIdx] = vars[mutIdx].equals("0") ? "1" : "0";
+			final String newState = String.join(",", vars);
+			newStates.add(newState);
+		}
+		final String newTrace = String.join(";", newStates) + "::" + repeatIdx;
+		return newTrace;
+    }
+    
+    public Pair<Set<String>, Set<String>> traceGen(int maxTraceLen, int maxPosTraces, int maxNegTraces) {
+    	Set<String> posTraces = new HashSet<>();
+    	for (EKState s : this.initStates) {
+    		tracesOfLength(s, "", maxTraceLen, posTraces);
+    	}
+    	Utils.assertTrue(!posTraces.isEmpty(), "No traces found!");
+    	System.out.println("Num pos traces: " + posTraces.size());
+
+    	Set<String> negTraces = new HashSet<>();
+    	final int numVars = Utils.getOneRandomElement(posTraces).split(";")[0].split(",").length;
+    	int numNegTraces = 0;
+    	while (numNegTraces < maxNegTraces) {
+    		//final String trace = randomTrace(maxTraceLen, numVars);
+    		final String trace = randomlyMutatedTrace(posTraces);
+    		if (!posTraces.contains(trace)) {
+    			negTraces.add(trace);
+    			++numNegTraces;
+    		}
+    	}
+    	
+    	// trim pos examples to max size
+    	while (posTraces.size() > maxPosTraces) {
+    		final String e = Utils.getOneRandomElement(posTraces);
+    		posTraces.remove(e);
+    	}
+    	
+    	return new Pair<>(posTraces, negTraces);
+    }
+    
+    /* Trace Gen with Lassos */
+    
+    private void lassoTracesDFS(final EKState state, final List<String> traceSoFar, int len, boolean isGood, Set<String> posTraces, Set<String> negTraces) {
+    	if (len <= 0) {
+    		// base case
+    		return;
+    	}
+    	// sanity checks
+    	final List<Pair<String,String>> varVals = Utils.extractKeyValuePairsFromState(state);
+    	final List<String> vars = Arrays.asList("flag0","flag1","pc0_CS","pc0_a1","pc0_a2","pc0_a3",
+    			"pc0_a4","pc0_a5","pc1_CS","pc1_a1","pc1_a2","pc1_a3","pc1_a4","pc1_a5","turn");
+    	for (int i = 0; i < varVals.size(); ++i) {
+    		final String expectedVar = vars.get(i);
+    		final String actualVar = varVals.get(i).first;
+        	Utils.assertTrue(expectedVar.equals(actualVar), expectedVar + " is in the wrong position!");
+    	}
+    	
+		final String stateInTraceFormat = varVals
+				.stream()
+				.map(p -> p.second)
+				.map(v -> v.equals("1") || v.equals("TRUE") ? "1" : "0")
+				.collect(Collectors.joining(","));
+		
+		// add pos / neg traces
+		if (traceSoFar.contains(stateInTraceFormat)) {
+			final Set<Integer> lassoIndices = IntStream
+					.range(0, traceSoFar.size())
+					.filter(i -> traceSoFar.get(i).equals(stateInTraceFormat))
+					.mapToObj(i -> i)
+					.collect(Collectors.toSet());
+			for (int idx : lassoIndices) {
+				final String trace = String.join(";", traceSoFar) + "::" + idx;
+				if (isGood) {
+					posTraces.add(trace);
+				} else {
+					negTraces.add(trace);
+				}
+			}
+		}
+		
+		// continue the DFS
+		final boolean newTraceGood = isGood && !this.badStates.contains(state);
+		List<String> newTraceSoFar = new ArrayList<>(traceSoFar);
+		newTraceSoFar.add(stateInTraceFormat);
+		
+		for (final EKState dst : this.succ(state)) {
+			if (!state.equals(dst)) {
+				lassoTracesDFS(dst, newTraceSoFar, len-1, newTraceGood, posTraces, negTraces);
+			}
+		}
+    }
+    
+    public Pair<Set<String>, Set<String>> traceGenLassos(int maxTraceLen, int maxPosTraces, int maxNegTraces) {
+    	Set<String> posTraces = new HashSet<>();
+    	Set<String> negTraces = new HashSet<>();
+    	for (EKState s : this.initStates) {
+    		lassoTracesDFS(s, new ArrayList<>(), maxTraceLen, true, posTraces, negTraces);
+    	}
+    	
+    	System.err.println("Total Pos Traces: " + posTraces.size());
+    	
+    	while (posTraces.size() > maxPosTraces) {
+    		final String toRemove = Utils.getOneRandomElement(posTraces);
+    		posTraces.remove(toRemove);
+    	}
+    	while (negTraces.size() > maxNegTraces) {
+    		final String toRemove = Utils.getOneRandomElement(negTraces);
+    		negTraces.remove(toRemove);
+    	}
+    	
+    	return new Pair<>(posTraces, negTraces);
     }
     
     public String toFSP() {

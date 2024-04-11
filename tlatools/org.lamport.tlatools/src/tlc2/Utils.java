@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -145,6 +146,19 @@ public class Utils {
     		elem = e;
     	}
     	return elem;
+    }
+    
+    public static <T> T getOneRandomElement(Set<T> set) {
+    	Random r = new Random();
+    	int target = r.nextInt(set.size());
+    	int i = 0;
+    	for (T e : set) {
+    		if (i == target) {
+    			return e;
+    		}
+    		++i;
+    	}
+    	return null;
     }
 	
     

@@ -36,6 +36,11 @@ public class Main {
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
     	
+    	// generate traces from a TLA+ spec
+    	else if (args.length == 6 && args[0].equals("--trace-gen")) {
+    		Composition.traceGeneration(args);
+    	}
+    	
     	// convert a TLA+ spec to FSP
     	else if (args.length == 3 && args[0].equals("--to-fsp")) {
     		Composition.toFSP(args);

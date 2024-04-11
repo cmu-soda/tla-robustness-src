@@ -8,10 +8,40 @@ import java.util.stream.Collectors;
 
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpDefNode;
+import tlc2.Utils.Pair;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.impl.FastTool;
 
 public class Composition {
+    
+    public static void traceGeneration(String[] args) {
+    	final String tla = args[1];
+    	final String cfg = args[2];
+    	int maxTraceLen = Integer.parseInt(args[3]);
+    	int maxPosTraces = Integer.parseInt(args[4]);
+    	int maxNegTraces = Integer.parseInt(args[5]);
+    	
+    	// initialize and run TLC
+    	TLC tlc = new TLC("tlc");
+    	TLC.runTLC(tla, cfg, tlc);
+    	
+    	// error checking
+    	if (tlc.getKripke() == null) {
+    		System.err.println("The spec is malformed, or the file does not exist.");
+    		return;
+    	}
+    	
+    	final Pair<Set<String>, Set<String>> traces = tlc.getKripke().traceGenLassos(maxTraceLen, maxPosTraces, maxNegTraces);
+    	System.out.println("Positive traces:");
+    	for (final String t : traces.first) {
+    		System.out.println(t);
+    	}
+    	System.out.println();
+    	System.out.println("Negative traces:");
+    	for (final String t : traces.second) {
+    		System.out.println(t);
+    	}
+    }
     
     public static void toFSP(String[] args) {
     	final String tla = args[1];
