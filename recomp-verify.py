@@ -26,7 +26,7 @@ def create_err_trace(txt):
             keep.append(l)
     return "\n".join(keep)
 
-def verify(spec, cfg, cust, naive):
+def verify(spec, cfg, cust, naive, verbose):
     # run model checking alg
     # use subprocess.call to send the output to stdout
     cmd_args = ["java", "-Xmx25g", "-jar", tool, "--verif", spec, cfg]
@@ -34,6 +34,8 @@ def verify(spec, cfg, cust, naive):
         cmd_args.append("--sc")
     if naive:
         cmd_args.append("--naive")
+    if verbose:
+        cmd_args.append("--verbose")
     retcode = subprocess.call(cmd_args)
 
     if (retcode == 99):
@@ -48,17 +50,21 @@ def verify(spec, cfg, cust, naive):
             print("Could not confirm the violating trace in the TLA+ spec; this is a bug in the tool.")
 
 def run():
-    if (len(sys.argv) < 3 or len(sys.argv) > 4):
+    if (len(sys.argv) < 3 or len(sys.argv) > 5):
         print("usage: recomp-verify.py [--cust] <file.tla> <file.cfg>")
         return
-    if (len(sys.argv) == 4 and sys.argv[3] != "--cust" and sys.argv[3] != "--naive"):
-        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive]")
+    if (len(sys.argv) == 4 and sys.argv[3] != "--cust" and sys.argv[3] != "--naive" and sys.argv[3] != "--verbose"):
+        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
+        return
+    if (len(sys.argv) == 5 and sys.argv[4] != "--cust" and sys.argv[4] != "--naive" and sys.argv[4] != "--verbose"):
+        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
         return
 
     spec = sys.argv[1]
     cfg = sys.argv[2]
-    cust = len(sys.argv) == 4 and sys.argv[3] == "--cust"
-    naive = len(sys.argv) == 4 and sys.argv[3] == "--naive"
+    cust = (len(sys.argv) >= 4 and sys.argv[3] == "--cust") or (len(sys.argv) >= 5 and sys.argv[4] == "--cust")
+    naive = (len(sys.argv) >= 4 and sys.argv[3] == "--naive") or (len(sys.argv) >= 5 and sys.argv[4] == "--naive")
+    verbose = (len(sys.argv) >= 4 and sys.argv[3] == "--verbose") or (len(sys.argv) >= 5 and sys.argv[4] == "--verbose")
 
     orig_dir = os.getcwd()
     os.makedirs("out", exist_ok=True)
@@ -70,7 +76,7 @@ def run():
         shutil.copy(filename, dest_dir)
 
     os.chdir("out")
-    verify(spec, cfg, cust, naive)
+    verify(spec, cfg, cust, naive, verbose)
     os.chdir(orig_dir)
 
 run()

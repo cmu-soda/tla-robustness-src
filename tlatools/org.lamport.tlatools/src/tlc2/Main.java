@@ -36,19 +36,22 @@ public class Main {
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
     	
-    	// invoke the Decomposition Verify algorithm to perform MC using the heuristic for the re-mapping
-    	else if (args.length == 3 && args[0].equals("--verif")) {
-        	Composition.decompVerify(args, "HEURISTIC");
-    	}
-    	
     	// invoke the Decomposition Verify algorithm to perform MC with a custom re-mapping
-    	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--sc")) {
-        	Composition.decompVerify(args, "CUSTOM");
+    	else if (args.length >= 4 && args[0].equals("--verif") && args[3].equals("--sc")) {
+    		final boolean verbose = args.length == 5 && args[4].equals("--verbose");
+        	Composition.decompVerify(args, "CUSTOM", verbose);
     	}
     	
     	// invoke the Decomposition Verify algorithm to perform MC with the naive re-mapping
-    	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--naive")) {
-        	Composition.decompVerify(args, "NAIVE");
+    	else if (args.length >= 4 && args[0].equals("--verif") && args[3].equals("--naive")) {
+    		final boolean verbose = args.length == 5 && args[4].equals("--verbose");
+        	Composition.decompVerify(args, "NAIVE", verbose);
+    	}
+    	
+    	// invoke the Decomposition Verify algorithm to perform MC using the heuristic for the re-mapping
+    	else if (args.length >= 3 && args[0].equals("--verif")) {
+    		final boolean verbose = args.length == 4 && args[3].equals("--verbose");
+        	Composition.decompVerify(args, "HEURISTIC", verbose);
     	}
     	
     	// invoke naive version of the Decomposition Verify algorithm to perform MC
