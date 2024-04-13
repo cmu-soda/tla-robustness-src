@@ -1,9 +1,0 @@
-TLA+ Module: MutexExample
-Diff rep grouped by action:
-
-Down:
-Safety boundary representation: out/MutexExample_Down_diff_rep.txt
-Safety boundary rep formula (with sort definitions):
-Sort1 == {"cs","safe"}
-/\ state = "down"
-/\ \A S \in Sort1 : (pc2 # S \/ pc1 # S)

@@ -1,3 +1,0 @@
-TLA+ Module: SecureVoting
-Diff rep grouped by action:
-SecureVoting is robust against ANY behavior or environment

@@ -1,1 +1,0 @@
-Spec is robust against ANY behavior or environment

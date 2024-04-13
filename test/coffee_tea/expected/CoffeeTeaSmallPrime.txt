@@ -1,8 +1,0 @@
-TLA+ Module: CoffeeTeaSmallPrime
-Diff rep grouped by action:
-
-BrewTea:
-Safety boundary representation: out/CoffeeTeaSmallPrime_BrewTea_diff_rep.txt
-Safety boundary rep formula (with sort definitions):
-/\ brewed = {}
-/\ temp = 70

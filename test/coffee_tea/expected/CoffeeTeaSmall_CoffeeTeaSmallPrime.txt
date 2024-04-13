@@ -1,6 +1,0 @@
-TLA+ Module Comparison: CoffeeTeaSmall v. CoffeeTeaSmallPrime
-The specs are equally robust
-
-the diff rep for eta(CoffeeTeaSmall) - eta(CoffeeTeaSmallPrime) is empty
-
-the diff rep for eta(CoffeeTeaSmallPrime) - eta(CoffeeTeaSmall) is empty

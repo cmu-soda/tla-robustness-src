@@ -1,6 +1,0 @@
-TLA+ Module Comparison: VotingImproved v. Voting
-VotingImproved is strictly more robust than Voting
-
-the diff rep for eta(VotingImproved) - eta(Voting) is empty
-
-the diff rep for eta(Voting) - eta(VotingImproved) is empty

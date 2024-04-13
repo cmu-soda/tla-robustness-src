@@ -1,3 +1,0 @@
-TLA+ Module: Therac20
-Diff rep grouped by action:
-Therac20 is robust against ANY behavior or environment
