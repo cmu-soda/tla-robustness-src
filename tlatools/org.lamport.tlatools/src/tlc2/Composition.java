@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,6 +39,7 @@ import net.automatalib.words.Word;
 import net.automatalib.words.impl.Alphabets;
 import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpDefNode;
+import tlc2.Utils.Pair;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.impl.FastTool;
 
@@ -75,6 +77,12 @@ public class Composition {
     	return new CompactLTS<>(compactNFA);
 	}
 	
+	/**
+	 * Orders the components by how they talk to each other through their interfaces (alphabets).
+	 * This method will trim components that can (provably) not affect verification.
+	 * @param rawComponents
+	 * @return
+	 */
 	private static List<String> interfaceOrdering(final List<String> rawComponents) {
 		if (rawComponents.isEmpty()) {
 			return rawComponents;
@@ -122,6 +130,135 @@ public class Composition {
     	}
     	
     	return components;
+	}
+	
+	/**
+	 * Orders the components using a "data flow" heuristic, where the data starts from the variables that occur
+	 * in the safety property and "flow" to variables that occur (as guards / primed) in the same action. This
+	 * ordering essentially views each component as a set of state variables.
+	 * @param tla The monolithic TLA+ file
+	 * @param cfg The config for the monolithic TLA+ file
+	 * @param rawComponents
+	 * @return
+	 */
+	private static List<String> dataFlowOrdering(final String tla, final String cfg, final List<String> rawComponents) {
+		if (rawComponents.isEmpty()) {
+			return rawComponents;
+		}
+		
+    	final String noInvsCfg = "no_invs.cfg";
+    	final List<Set<String>> stateVars = rawComponents
+    			.stream()
+    			.map(c -> stateVarsInSpec(c, noInvsCfg))
+    			.collect(Collectors.toList());
+    	
+    	// collect the state vars in the safety property
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	final Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
+    	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
+    	
+    	// sanity check--the first component should contain the property vars
+    	Utils.assertTrue(propertyVars.equals(stateVars.get(0)), "First component should contain all property vars!");
+    	
+    	
+    	// STEP 1: assign a partial order to the state vars based the data flow of the vars
+    	Set<Utils.Pair<String,String>> partialOrder = new HashSet<>();
+    	
+    	// all vars from the same component are equal to each other in the partial order
+    	for (final Set<String> cmptVars : stateVars) {
+    		for (final String v1 : cmptVars) {
+        		for (final String v2 : cmptVars) {
+            		partialOrder.add(new Utils.Pair<>(v1, v2));
+        		}
+    		}
+    	}
+    	
+    	// add "data flow" relations to the partial order
+    	Set<String> visitedVars = new HashSet<>();
+    	List<Set<String>> queue = new LinkedList<>();
+    	queue.add(propertyVars);
+    	while (!queue.isEmpty()) {
+    		final Set<String> currentVars = queue.remove(0);
+        	visitedVars.addAll(currentVars);
+    		
+        	for (final String v : currentVars) {
+        		// find all variables that occur in the same actions as v
+        		final Set<String> flowToVars = tlc.stateVarsInSameAction(Set.of(v));
+        		flowToVars.removeAll(visitedVars);
+        		
+        		// add flowToVars to partial order
+        		for (final String ftv : flowToVars) {
+        			partialOrder.add(new Utils.Pair<>(v, ftv));
+        		}
+        		
+        		// prepare for next iteration
+        		queue.add(flowToVars);
+        	}
+    	}
+    	
+    	// add transitive closure relations to the partial order
+    	Utils.transitiveClosure(partialOrder);
+    	
+    	
+    	// STEP 2: break ties (assign a total order to the state vars) based on which vars occur more (syntactically)
+    	// in the monolithic spec
+    	final Set<String> allStateVars = tlc.stateVarsInSpec();
+
+		// find incomparable elements and assign a total order
+		for (final String v1 : allStateVars) {
+			for (final String v2 : allStateVars) {
+				if (!v1.equals(v2)) {
+					final Utils.Pair<String,String> order1 = new Utils.Pair<>(v1,v2);
+					final Utils.Pair<String,String> order2 = new Utils.Pair<>(v2,v1);
+					if (!partialOrder.contains(order1) && !partialOrder.contains(order2)) {
+						// found incomparable elements
+						// current tie breaker strategy: choose the variable that occurs more (syntactically) to be "larger"
+						final int numOccurrencesV1 = tlc.numOccurrencesOutsideOfUNCHANGED(v1);
+						final int numOccurrencesV2 = tlc.numOccurrencesOutsideOfUNCHANGED(v2);
+						final Utils.Pair<String,String> tieBreaker = (numOccurrencesV1 < numOccurrencesV2) ? order1 : order2;
+						partialOrder.add(tieBreaker);
+				    	Utils.transitiveClosure(partialOrder);
+					}
+				}
+			}
+		}
+    	
+    	
+    	// STEP 3: the total ordering on their state variables induces a total ordering over the components
+    	
+    	// build a map from state var -> component
+    	Map<String,String> varToComponentMap = new HashMap<>();
+    	for (int i = 0; i < stateVars.size(); ++i) {
+    		final String component = rawComponents.get(i);
+    		for (final String var : stateVars.get(i)) {
+    			varToComponentMap.put(var, component);
+    		}
+    	}
+    	
+    	// replace state vars in the PO with the component they belong to. this will give us a total ordering over the
+    	// components.
+    	Set<Utils.Pair<String,String>> componentOrder = partialOrder
+    			.stream()
+    			.map(e -> new Utils.Pair<String,String>(varToComponentMap.get(e.first), varToComponentMap.get(e.second)))
+    			.collect(Collectors.toSet());
+    	/*for (final Utils.Pair<String,String> e : componentOrder) {
+    		System.err.println("(" + e.first + ", " + e.second + ")");
+    	}
+    	System.err.println();*/
+    	
+    	// remove the largest element from <componentOrder> until it is empty
+    	List<String> components = new ArrayList<>();
+    	while (!componentOrder.isEmpty()) {
+    		final String largestElem = Utils.largestElement(componentOrder);
+    		components.add(largestElem);
+    		componentOrder = componentOrder
+    				.stream()
+    				.filter(e -> !largestElem.equals(e.first) && !largestElem.equals(e.second))
+    				.collect(Collectors.toSet());
+    	}
+    	
+		return components;
 	}
 	
 	private static String makeIntoSpec(final String specName, final String specBody) {
@@ -289,28 +426,23 @@ public class Composition {
 		return components;*/
 	}
 	
-	private static List<String> symbolicCompose(final String tla, final String cfg, boolean customSymComp, final List<String> rawComponents) {
-		//return symbolicComposeByTypeOK(tla, cfg, interfaceOrdering(rawComponents));
-		//return interfaceOrdering(symbolicComposeByTypeOK(tla, cfg, interfaceOrdering(rawComponents)));
-		//return interfaceOrdering(rawComponents);
-		//return rawComponents;
-		
+	private static List<String> symbolicCompose(final String tla, final String cfg, final String recompType, final List<String> rawComponents) {
 		// interfaceOrdering() trims unneeded components. Don't use the ordering, but do use it to trim components.
-		final Set<String> neededComponents = interfaceOrdering(rawComponents).stream().collect(Collectors.toSet());
+		final Set<String> neededComponents = interfaceOrdering(rawComponents)
+				.stream()
+				.collect(Collectors.toSet());
 		final List<String> trimmedComponents = rawComponents
 				.stream()
 				.filter(c -> neededComponents.contains(c))
 				.collect(Collectors.toList());
-		final boolean allCompoments = trimmedComponents.size() == rawComponents.size();
+		
+		final boolean useHeuristic = !recompType.equals("CUSTOM") && !recompType.equals("NAIVE");
+		final List<String> orderdComponents = useHeuristic ? dataFlowOrdering(tla, cfg, trimmedComponents) : trimmedComponents;
 		
 		List<List<String>> groupings = new ArrayList<>();
-
-		// consensus_forall
-		//customGroupings.add(List.of("C1", "C5", "C3", "C2", "T5"));
-		//customGroupings.add(List.of("C4"));
 		
-		// custom grouping
-		if (customSymComp) {
+		// custom re-mapping
+		if (recompType.equals("CUSTOM")) {
 			Utils.fileContents("custom_sym_comp.csv")
 				.stream()
 				.map(l -> Utils.toArrayList(l.split(",")))
@@ -318,7 +450,7 @@ public class Composition {
 				.forEach(a -> groupings.add(a));
 			
 			// sanity check
-			final Set<String> rawCmptSet = trimmedComponents.stream().collect(Collectors.toSet());
+			final Set<String> rawCmptSet = orderdComponents.stream().collect(Collectors.toSet());
 			final Set<String> grCmptSet = groupings
 					.stream()
 					.reduce((Set<String>) new HashSet<String>(),
@@ -337,17 +469,32 @@ public class Composition {
 				Utils.assertTrue(false, "Invalid custom grouping!");
 			}
 		}
-		// default grouping
-		else {
-			for (final String c : trimmedComponents) {
+		// naive re-mapping
+		else if (recompType.equals("NAIVE")) {
+			for (final String c : orderdComponents) {
 				groupings.add(List.of(c));
 			}
 		}
+		// by default we create the re-mapping using the heuristic
+		else {
+			List<String> group1 = new ArrayList<>();
+			for (int i = 1; i < orderdComponents.size()-1; ++i) {
+				group1.add(orderdComponents.get(i));
+			}
+			groupings.add(List.of(orderdComponents.get(0)));
+			if (group1.size() > 0) {
+				groupings.add(group1);
+			}
+			if (orderdComponents.size() > 1) {
+				groupings.add(List.of(orderdComponents.get(orderdComponents.size()-1)));
+			}
+		}
 		
+		final boolean allCompoments = orderdComponents.size() == rawComponents.size();
 		return decompForSymbolicCompose(tla, cfg, groupings, allCompoments);
 	}
     
-	public static void decompVerify(String[] args, boolean customSymComp) {
+	public static void decompVerify(String[] args, final String recompType) {
     	final String tla = args[1];
     	final String cfg = args[2];
     	
@@ -360,7 +507,7 @@ public class Composition {
     	
     	// decompose the spec into as many components as possible
     	final List<String> rawComponents = decompAll(tla, cfg);
-    	final List<String> components = symbolicCompose(tla, cfg, customSymComp, rawComponents);
+    	final List<String> components = symbolicCompose(tla, cfg, recompType, rawComponents);
     	Utils.assertTrue(rawComponents.size() > 0, "Decomposition returned no components");
     	Utils.assertTrue(components.size() > 0, "Symbolic composition returned no components");
     	System.out.println("n: " + rawComponents.size());
@@ -750,24 +897,17 @@ public class Composition {
     	// initialize TLC, DO NOT run it though
     	TLC tlc = new TLC();
     	tlc.initialize(tla, cfg);
-    	return actionsInSpec(tlc);
-    }
-    
-    private static Set<String> actionsInSpec(final TLC tlc) {
-    	final FastTool ft = (FastTool) tlc.tool;
-    	return Utils.toArrayList(ft.getActions())
-        		.stream()
-        		.map(a -> a.getName().toString())
-        		.collect(Collectors.toSet());
+    	return tlc.actionsInSpec();
     }
     
     private static Set<String> actionNamesInSpec(final TLC tlc) {
-    	final FastTool ft = (FastTool) tlc.tool;
+    	return tlc.actionsInSpec();
+    	/*final FastTool ft = (FastTool) tlc.tool;
     	return Utils.toArrayList(ft.getActions())
         		.stream()
         		.map(a -> a.getName().toString())
         		//.map(a -> Utils.firstLetterToLowerCase(a))
-        		.collect(Collectors.toSet());
+        		.collect(Collectors.toSet());*/
     }
     
     

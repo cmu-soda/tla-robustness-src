@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class Utils {
 	private static final String QUOTE = "\"";
@@ -59,6 +60,69 @@ public class Utils {
     		proj.add(e.first);
     	}
     	return proj;
+    }
+    
+    
+    /* utils over relations */
+    
+    /**
+     * Compute the transitive closure over the given relation. This method mutates the input parameter.
+     * @param relation
+     */
+    public static void transitiveClosure(Set<Pair<String,String>> relation) {
+    	boolean reachedClosure = false;
+    	while (!reachedClosure) {
+    		reachedClosure = true;
+    		for (Pair<String,String> e1 : relation) {
+        		for (Pair<String,String> e2 : relation) {
+        			if (!e1.equals(e2) && e1.second.equals(e2.first)) {
+        				// in this case we should have: (e1.first,e2.second) \in relation
+        				Pair<String,String> trans = new Utils.Pair<>(e1.first,e2.second);
+        				if (!relation.contains(trans)) {
+        					relation.add(trans);
+        					reachedClosure = false;
+        					break;
+        				}
+        			}
+        		}
+        		if (!reachedClosure) {
+        			break;
+        		}
+    		}
+    		// break to here
+    	}
+    }
+    
+    /**
+     * Assumes that <relation> has a unique largest element. <relation> can be a partial or total
+     * ordering.
+     * @param relation
+     * @return
+     */
+    public static String largestElement(final Set<Pair<String,String>> relation) {
+    	// if there is a unique largest element, it must occur as the first element in each pair in <relation>
+    	final Set<String> elems = relation
+    			.stream()
+    			.map(e -> e.first)
+    			.collect(Collectors.toSet());
+    	for (final String cand : elems) {
+    		boolean isLargest = true;
+    		for (final Pair<String,String> e : relation) {
+    			if (!cand.equals(e.first) && cand.equals(e.second)) {
+    				// <cand> is smaller than some element in <relation> and hence cannot be the largest
+    				isLargest = false;
+    				break;
+    			}
+    		}
+    		if (isLargest) {
+	    		// at this point, no element is larger than <cand>
+	    		return cand;
+    		}
+    	}
+    	
+    	// if there is a largest element then we should not reach this line
+    	Utils.assertTrue(false, "No largest element detected!");
+    	return null;
     }
     
     

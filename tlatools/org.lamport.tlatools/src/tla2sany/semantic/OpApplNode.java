@@ -646,6 +646,70 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 	  }
   }
   
+  @Override
+  public Set<String> stateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  Set<String> vars = new HashSet<>();
+	  
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  
+	  // do not search through UNCHANGED blocks
+	  if (isUnchangedOp(opKey)) {
+		  return vars;
+	  }
+	  
+	  // add state variables
+	  if (varNames.contains(opKey)) {
+		  vars.add(opKey);
+	  }
+	  
+	  // if the node is a user defined op then we need to search the def for state vars
+	  final List<OpDefNode> opDefinition = defExpansionNodes
+			  .stream()
+			  .filter(n -> opKey.equals(n.getName().toString()))
+			  .collect(Collectors.toList());
+	  Utils.assertTrue(opDefinition.size() <= 1, "Multiple moduleNodes with the same name is not possible!");
+	  final boolean isUserDefinedOp = opDefinition.size() > 0;
+	  if (isUserDefinedOp) {
+		  final OpDefNode defNode = opDefinition.get(0);
+		  vars.addAll(defNode.stateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes));
+	  }
+	  
+	  if (getChildren() == null) {
+		  return vars;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  @Override
+  public int numOccurrencesOutsideOfUNCHANGED(final String var) {
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  
+	  // do not search through UNCHANGED blocks
+	  if (isUnchangedOp(opKey)) {
+		  return 0;
+	  }
+	  
+	  // if we found a match, then there is 1 occurrence in this node
+	  if (opKey.equals(var)) {
+		  return 1;
+	  }
+	  
+	  if (getChildren() == null) {
+		  return 0;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(0,
+					  (acc, n) -> acc + n.numOccurrencesOutsideOfUNCHANGED(var),
+					  (n, m) -> n + m);
+  }
+  
   /**
    * WARNING: this method is untested.
    */

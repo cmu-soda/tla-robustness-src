@@ -464,6 +464,14 @@ public class TLC {
     	return TLC.currentInstance.ltsBuilder;
     }
     
+    public Set<String> actionsInSpec() {
+    	final FastTool ft = (FastTool) this.tool;
+    	return Utils.toArrayList(ft.getActions())
+        		.stream()
+        		.map(a -> a.getName().toString())
+        		.collect(Collectors.toSet());
+    }
+    
     public Set<String> stateVarsInSpec() {
     	final FastTool ft = (FastTool) this.tool;
     	return Utils.toArrayList(ft.getVarNames())
@@ -488,6 +496,23 @@ public class TLC {
     		}
     	}
     	return false;
+    }
+    
+    public int numOccurrencesOutsideOfUNCHANGED(final String var) {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allActions = this.actionsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	return Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+				.filter(d -> allActions.contains(d.getName().toString()))
+				.reduce(0,
+					  (acc, n) -> acc + n.numOccurrencesOutsideOfUNCHANGED(var),
+					  (n, m) -> n + m);
     }
     
     /**
@@ -529,6 +554,44 @@ public class TLC {
     	}
     	
     	return vars;
+    }
+
+    /**
+     * Given a set of <vars>, this method will calculate all variables that occur (as guards / primed)
+     * in the same actions where each v \in <vars> occurs.
+     * Each var in <vars> is guaranteed to NOT be in the return value.
+     * @param vars
+     * @return
+     */
+    public Set<String> stateVarsInSameAction(Set<String> vars) {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allVars = this.stateVarsInSpec();
+    	final Set<String> allActions = this.actionsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+    			.collect(Collectors.toList());
+    	
+    	// main logic
+    	Set<String> ocurrsWithVars = new HashSet<>();
+		for (OpDefNode n : moduleNodes) {
+			final String actionName = n.getName().toString();
+			if (allActions.contains(actionName)) {
+				final Set<String> occurringStateVars = n.stateVarsOutsideOfUNCHANGED(allVars, moduleNodes);
+				if (!Utils.intersection(occurringStateVars, vars).isEmpty()) {
+					// this action contains at least one var in <vars>. we therefore add all vars that occur
+					// in this action to ocurrsWithVars
+					ocurrsWithVars.addAll(occurringStateVars);
+				}
+			}
+		}
+		
+    	return Utils.setMinus(ocurrsWithVars, vars);
     }
     
     

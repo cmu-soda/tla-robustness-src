@@ -36,14 +36,19 @@ public class Main {
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
     	
-    	// invoke the Decomposition Verify algorithm to perform MC
+    	// invoke the Decomposition Verify algorithm to perform MC using the heuristic for the re-mapping
     	else if (args.length == 3 && args[0].equals("--verif")) {
-        	Composition.decompVerify(args, false);
+        	Composition.decompVerify(args, "HEURISTIC");
     	}
     	
-    	// invoke the Decomposition Verify algorithm to perform MC with a custom sym-com ordering
+    	// invoke the Decomposition Verify algorithm to perform MC with a custom re-mapping
     	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--sc")) {
-        	Composition.decompVerify(args, true);
+        	Composition.decompVerify(args, "CUSTOM");
+    	}
+    	
+    	// invoke the Decomposition Verify algorithm to perform MC with the naive re-mapping
+    	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--naive")) {
+        	Composition.decompVerify(args, "NAIVE");
     	}
     	
     	// invoke naive version of the Decomposition Verify algorithm to perform MC

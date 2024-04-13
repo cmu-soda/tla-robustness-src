@@ -288,6 +288,35 @@ public abstract class SemanticNode
   }
   
   /**
+   * Gets the set of state variables (subset of <varNames>) that occur outside of an
+   * UNCHANGED block.
+   * @param varNames
+   * @param defExpansionNodes
+   * @return
+   */
+  public Set<String> stateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce((Set<String>)new HashSet<String>(),
+					  (acc, n) -> Utils.union(acc, n.stateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  public int numOccurrencesOutsideOfUNCHANGED(final String var) {
+	  if (getChildren() == null) {
+		  return 0;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(0,
+					  (acc, n) -> acc + n.numOccurrencesOutsideOfUNCHANGED(var),
+					  (n, m) -> n + m);
+  }
+  
+  /**
    * WARNING: this method is untested.
    * @param varNames
    * @param defExpansionNodes
