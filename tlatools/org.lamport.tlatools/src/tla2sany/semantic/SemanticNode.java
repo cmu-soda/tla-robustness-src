@@ -6,9 +6,12 @@ package tla2sany.semantic;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -69,6 +72,38 @@ public abstract class SemanticNode
     }
   }
   
+  public Map<String,String> collectTypesFromTypeOK() {
+	  // merge all maps
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(new HashMap<String,String>(),
+					  (acc, c) -> {
+						  acc.putAll(c.collectTypesFromTypeOK());
+						  return acc;
+					  },
+					  (m1, m2) -> {
+						 m1.putAll(m2);
+						 return m1;
+					  });
+  }
+  
+  public boolean isMalformed() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.isMalformed());
+  }
+  
+  public void removeMalformedChildren() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeMalformedChildren();
+		  }
+	  }
+  }
+  
   public void stateVarVisit(Set<String> vars) {
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
@@ -81,14 +116,6 @@ public abstract class SemanticNode
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
 			  n.removeUnusedLetDefs();
-		  }
-	  }
-  }
-  
-  public void removeChildNodes(final Set<? extends SemanticNode> toRemove) {
-	  if (getChildren() != null) {
-		  for (SemanticNode n : getChildren()) {
-			  n.removeChildNodes(toRemove);
 		  }
 	  }
   }
@@ -109,22 +136,11 @@ public abstract class SemanticNode
 	  }
   }
   
-  public void removeConjunctsWithStateVars(final Set<String> vars) {
-	  if (getChildren() != null) {
-		  for (SemanticNode n : getChildren()) {
-			  n.removeConjunctsWithStateVars(vars);
-		  }
-	  }
-  }
-  
-  public void removeStateVarsFromUnchangedTuples(final Set<String> vars) {
-	  if (getChildren() != null) {
-		  for (SemanticNode n : getChildren()) {
-			  n.removeStateVarsFromUnchangedTuples(vars);
-		  }
-	  }
-  }
-  
+  /**
+   * Returns whether this SemanticNode contains *any* of the state vars in <vars>
+   * @param vars
+   * @return
+   */
   public boolean containsStateVars(final Set<String> vars) {
 	  if (getChildren() == null) {
 		  return false;
@@ -134,6 +150,36 @@ public abstract class SemanticNode
 			  .anyMatch(c -> c.containsStateVars(vars));
   }
   
+  /**
+   * Searches the AST for nodes with the name <name>. Will expand any user defined ops, which
+   * is the purpose of the parameter <moduleNodes>.
+   * @param name
+   * @param moduleNodes
+   * @return
+   */
+  public boolean containsNodeOrDefWithName(final String name, final List<OpDefNode> moduleNodes) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeOrDefWithName(name, moduleNodes));
+  }
+  
+  public boolean containsNodeOrDefWithNames(final Set<String> names, final List<OpDefNode> moduleNodes) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeOrDefWithNames(names, moduleNodes));
+  }
+  
+  /**
+   * Simple recursive search through the AST for nodes with the name <name>.
+   * @param name
+   * @return
+   */
   public boolean containsNodeWithName(final String name) {
 	  if (getChildren() == null) {
 		  return false;
@@ -141,6 +187,15 @@ public abstract class SemanticNode
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.containsNodeWithName(name));
+  }
+  
+  public boolean containsNodeWithAnyName(final Set<String> names) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.containsNodeWithAnyName(names));
   }
   
   public boolean hasUnchangedNode() {
@@ -168,6 +223,114 @@ public abstract class SemanticNode
 	  return Utils.toArrayList(getChildren())
 			  .stream()
 			  .anyMatch(c -> c.varIsUnchanged(var));
+  }
+  
+  /**
+   * Checks whether <var> occurs in a guarded conjunct in this node.
+   * @param var
+   * @return
+   */
+  public boolean varOccursInGuard(final String var) {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.varOccursInGuard(var));
+  }
+  
+  public boolean hasPrimedOp() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.hasPrimedOp());
+  }
+  
+  /**
+   * Returns whether this node is empty. Essentially, this node is a syntax error
+   * or garbage and can be removed.
+   * @return
+   */
+  public boolean emptyNode() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .allMatch(c -> c.emptyNode());
+  }
+  
+  /**
+   * Returns the subset of state vars in <notInVars> that occur in expressions that the
+   * vars in <vars> also occur in. The return value need not contain the vars in <vars>.
+   * This method will expand user defined ops during the search, which is the purpose of
+   * the parameter <moduleNodes>.
+   * @param notInVars
+   * @param vars
+   * @param moduleNodes
+   * @return
+   */
+  public Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes) {
+	  return stateVarsThatOccurInVars(notInVars, vars, defExpansionNodes, false);
+  }
+  
+  protected Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes, boolean inConjunct) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,defExpansionNodes,inConjunct)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  /**
+   * Gets the set of state variables (subset of <varNames>) that occur outside of an
+   * UNCHANGED block.
+   * @param varNames
+   * @param defExpansionNodes
+   * @return
+   */
+  public Set<String> stateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce((Set<String>)new HashSet<String>(),
+					  (acc, n) -> Utils.union(acc, n.stateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  public int numOccurrencesOutsideOfUNCHANGED(final String var) {
+	  if (getChildren() == null) {
+		  return 0;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(0,
+					  (acc, n) -> acc + n.numOccurrencesOutsideOfUNCHANGED(var),
+					  (n, m) -> n + m);
+  }
+  
+  /**
+   * WARNING: this method is untested.
+   * @param varNames
+   * @param defExpansionNodes
+   * @return
+   */
+  public Set<String> stateVarsInFormula(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce((Set<String>) new HashSet<String>(),
+					  (acc, n) -> Utils.union(acc, n.stateVarsInFormula(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
   }
   
   protected String toTLA(boolean pretty) {

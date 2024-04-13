@@ -51,6 +51,7 @@ public class StateVariable {
 	}
 	
 	
+	/*
 	public static Set<StateVariable> getStateVariables(final Set<EKState> stateSpace) {
     	// determine the domain for each state var
     	Map<String, Set<String>> varDomain = new HashMap<>();
@@ -144,5 +145,5 @@ public class StateVariable {
     	}
     	
     	return stateVars;
-	}
+	}*/
 }

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -66,10 +67,36 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
+  public void removeMalformedChildren() {
+	  if (getChildren() != null) {
+		  for (SemanticNode n : getChildren()) {
+			  n.removeMalformedChildren();
+		  }
+	  }
+  }
+  
+  @Override
   public void removeUnusedLetDefs() {
+	  // find defs that are used in later LET defs, not just used in the body
+	  Set<SymbolNode> defsUsedInLaterLetDef = new HashSet<>();
+	  for (int i = 0; i < this.opDefs.length; ++i) {
+		  final SymbolNode def = this.opDefs[i];
+		  final String defName = def.getName().toString();
+		  for (int j = i+1; j < this.opDefs.length; ++j) {
+			  final SymbolNode laterDef = this.opDefs[j];
+			  if (laterDef.containsNodeWithName(defName)) {
+				  defsUsedInLaterLetDef.add(def);
+			  }
+		  }
+	  }
+	  
+	  // remove defs that aren't used in the body or by any later LET defs
 	  this.opDefs = Utils.toArrayList(this.opDefs)
 			  	.stream()
-			  	.filter(d -> this.body.containsNodeWithName(d.getName().toString()))
+			  	.filter(d -> {
+			  		return this.body.containsNodeWithName(d.getName().toString())
+			  				|| defsUsedInLaterLetDef.contains(d);
+			  	})
 			  	.toArray(SymbolNode[]::new);
 	  
 	  if (getChildren() != null) {
@@ -80,36 +107,75 @@ implements ExploreNode, LevelConstants {
   }
   
   @Override
-  public void removeConjunctsWithStateVars(final Set<String> vars) {
+  public void removeChildrenWithName(final Set<String> toRemove) {
 	  final Set<String> removedDefs = Utils.toArrayList(this.opDefs)
 		.stream()
-		.filter(d -> d.containsStateVars(vars))
+		.filter(d -> d.containsNodeWithAnyName(toRemove))
 		.map(d -> d.getName().toString())
 		.collect(Collectors.toSet());
 	  this.opDefs = Utils.toArrayList(this.opDefs)
 	  	.stream()
-	  	.filter(c -> !c.containsStateVars(vars))
+	  	.filter(c -> !c.containsNodeWithAnyName(toRemove))
 	  	.toArray(SymbolNode[]::new);
 	  
 	  if (getChildren() != null) {
 		  for (SemanticNode n : getChildren()) {
-			  n.removeConjunctsWithStateVars(removedDefs);
-			  n.removeConjunctsWithStateVars(vars);
+			  n.removeChildrenWithName(removedDefs);
+			  n.removeChildrenWithName(toRemove);
 		  }
 	  }
   }
   
   @Override
-  protected String toTLA(boolean pretty) {
-	  if (this.opDefs.length == 0) {
-		  return this.getBody().toTLA(pretty);
+  public boolean hasOnlyUnchangedConjuncts() {
+	  if (this.body == null) {
+		  return false;
 	  }
-	  else {
+	  return this.body.hasOnlyUnchangedConjuncts();
+  }
+  
+  @Override
+  protected Set<String> stateVarsThatOccurInVars(final Set<String> notInVars, final Set<String> vars, final List<OpDefNode> defExpansionNodes, boolean inConjunct) {
+	  List<OpDefNode> latestDefExpansionNodes = new ArrayList<>(defExpansionNodes);
+	  Utils.toArrayList(this.opDefs)
+			  .stream()
+			  .forEach(n -> latestDefExpansionNodes.add((OpDefNode) n));
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.stateVarsThatOccurInVars(notInVars,vars,latestDefExpansionNodes,inConjunct)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  @Override
+  public boolean emptyNode() {
+	  if (getBody() == null) {
+		  return true;
+	  }
+	  return getBody().emptyNode();
+  }
+  
+  @Override
+  protected String toTLA(boolean pretty) {
+	  pretty = true; // this seems to work better
+	  final boolean hasDefs = this.opDefs.length > 0;
+	  final int newIndents = hasDefs ? 2 : 0;
+	  
+	  final String tlaBodyRaw = this.getBody().toTLA(pretty);
+	  final int prevIndentCount = tlaBodyRaw.length() - tlaBodyRaw.stripLeading().length();
+	  final int indentCount = prevIndentCount + newIndents;
+	  final String indents = " ".repeat(indentCount);
+	  final String tlaBody = tlaBodyRaw.replace("\n", "\n" + indents);
+	  
+	  if (hasDefs) {
 		  final String defsStr = Utils.toArrayList(this.opDefs)
 				  .stream()
 				  .map(d -> d.toTLA(false))
 				  .collect(Collectors.joining("\n    "));
-		  return "LET " + defsStr + " IN\n" + this.getBody().toTLA(pretty);
+		  return "LET " + defsStr + " IN\n" + indents + tlaBody;
+	  }
+	  else {
+		  return tlaBody;
 	  }
   }
 

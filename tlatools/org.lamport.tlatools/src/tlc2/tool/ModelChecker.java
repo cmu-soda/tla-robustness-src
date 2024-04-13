@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import tla2sany.semantic.OpDeclNode;
+import tlc2.TLC;
 import tlc2.TLCGlobals;
 import tlc2.output.EC;
 import tlc2.output.MP;
@@ -47,8 +48,6 @@ import util.UniqueString;
 // the name resolver and support for the external specification object has been added
 public class ModelChecker extends AbstractChecker
 {
-
-    public ExtKripke kripke = new ExtKripke();
 
 	protected static final boolean coverage = TLCGlobals.isCoverageEnabled();
 	/**
@@ -97,10 +96,6 @@ public class ModelChecker extends AbstractChecker
         {
             this.workers[i] = this.trace.addWorker(new Worker(i, this, this.metadir, this.tool.getRootName()));
         }
-    }
-    
-    public ExtKripke getKripke() {
-    	return kripke;
     }
     
     /**
@@ -430,31 +425,39 @@ public class ModelChecker extends AbstractChecker
                     {
                     	return doNextSetErr(curState, succState, action);
 					}
-
-					final boolean inModel = (tool.isInModel(succState) && tool.isInActions(curState, succState));
-					boolean unseen = true;
-                    if (inModel)
-                    {
-						unseen = !isSeenState(curState, succState, action, worker, liveNextStates);
-					}
-					// Check if an unseen succState violates any invariant:
-                    if (unseen)
-                    {
-                    	if (doNextCheckInvariants(tool, curState, succState)) {
-                    		return true;
-                    	}
-					}
-                    // Check if the state violates any implied action. We need to do it
-                    // even if succState is not new.
-                    if (doNextCheckImplied(tool, curState, succState)) {
-                    	return true;
-                    }
-                    if (inModel && unseen) {
-						// The state is inModel, unseen and neither invariants
-						// nor implied actions are violated. It is thus eligible
-						// for further processing by other workers.
-						this.theStateQueue.sEnqueue(succState);
-                    }
+                    
+                    final String actName = action.actionNameWithoutPrams();
+                	final String actSuffix = action.actionParams();
+              	    final String strAct = actSuffix.isEmpty() ? actName : actName + "." + actSuffix;
+                	if (!TLC.actionIsSuppressed(actName, strAct)) {
+                		final boolean inModel = (tool.isInModel(succState) && tool.isInActions(curState, succState));
+    					boolean unseen = true;
+                        if (inModel)
+                        {
+    						unseen = !isSeenState(curState, succState, action, worker, liveNextStates);
+    					}
+    					// Check if an unseen succState violates any invariant:
+                        if (unseen)
+                        {
+                        	if (doNextCheckInvariants(tool, curState, succState)) {
+                        		return true;
+                        	}
+    					}
+                        // Check if the state violates any implied action. We need to do it
+                        // even if succState is not new.
+                        if (doNextCheckImplied(tool, curState, succState)) {
+                        	return true;
+                        }
+                        if (inModel && unseen) {
+    						// The state is inModel, unseen and neither invariants
+    						// nor implied actions are violated. It is thus eligible
+    						// for further processing by other workers.
+                        	final boolean isGoodState = !invariantViolationIan(tool, curState, succState);
+                        	if (isGoodState || TLC.checkBadStates()) {
+        						this.theStateQueue.sEnqueue(succState);
+                        	}
+                        }
+                	}
 				}
 				// Must set state to null!!!
 				succState = null;
@@ -521,6 +524,33 @@ public class ModelChecker extends AbstractChecker
                 	} else {
 						return doNextSetErr(curState, succState, false,
 								EC.TLC_INVARIANT_VIOLATED_BEHAVIOR, tool.getInvNames()[k]);
+                	}
+				}
+			}
+        } catch (Exception e)
+        {
+			doNextEvalFailed(curState, succState, EC.TLC_INVARIANT_EVALUATION_FAILED,
+					tool.getInvNames()[k], e);
+		}
+		return false;
+	}
+
+	private final boolean invariantViolationIan(final ITool tool, final TLCState curState, final TLCState succState) throws IOException, WorkerException, Exception {
+        int k = 0;
+		try
+        {
+			for (k = 0; k < tool.getInvariants().length; k++)
+            {
+                if (!tool.isValid(tool.getInvariants()[k], succState))
+                {
+                    // We get here because of invariant violation:
+                	if (TLCGlobals.continuation) {
+                        synchronized (this)
+                        {
+							return true;
+                        }
+                	} else {
+						return true;
                 	}
 				}
 			}
@@ -1140,11 +1170,6 @@ public class ModelChecker extends AbstractChecker
 		 * @see tlc2.tool.IStateFunctor#addElement(tlc2.tool.TLCState)
 		 */
 		public Object addElement(final TLCState curState) {
-            // idardik begin
-            //System.out.println("Init:\n" + curState);
-            kripke.addInitState(curState);
-            // idardik end
-
 			if (Long.bitCount(numberOfInitialStates) == 1 && numberOfInitialStates > 1) {
 				MP.printMessage(EC.TLC_COMPUTING_INIT_PROGRESS, Long.toString(numberOfInitialStates));
 			}
@@ -1162,29 +1187,20 @@ public class ModelChecker extends AbstractChecker
 			}
 			
 			try {
+				boolean isGoodState = true;
 				// Check if the state is a legal state
 				if (!tool.isGoodState(curState)) {
-					kripke.addBadState(curState);
-					//MP.printError(EC.TLC_INITIAL_STATE, new String[]{ "current state is not a legal state", curState.toString() });
-					//this.errState = curState;
-					//returnValue = EC.TLC_INITIAL_STATE;
-					//throw new InvariantViolatedException();
+					isGoodState = false;
+					/*MP.printError(EC.TLC_INITIAL_STATE, new String[]{ "current state is not a legal state", curState.toString() });
+					this.errState = curState;
+					returnValue = EC.TLC_INITIAL_STATE;
+					throw new InvariantViolatedException();*/
 				}
 				boolean inModel = tool.isInModel(curState);
 				boolean seen = false;
 				if (inModel) {
 					long fp = curState.fingerPrint();
 					seen = theFPSet.put(fp);
-					if (!seen) {
-						allStateWriter.writeState(curState);
-						((Worker) workers[0]).writeState(curState, fp);
-						theStateQueue.enqueue(curState);
-
-						// build behavior graph for liveness checking
-						if (checkLiveness) {
-							liveCheck.addInitState(tool.getLiveness(), curState, fp);
-						}
-					}
 				}
 				// Check properties of the state:
 				if (!seen || forceChecks) {
@@ -1194,7 +1210,7 @@ public class ModelChecker extends AbstractChecker
 							MP.printError(EC.TLC_INVARIANT_VIOLATED_INITIAL,
 									new String[] { tool.getInvNames()[j].toString(), tool.evalAlias(curState, curState).toString() });
 							if (!TLCGlobals.continuation) {
-								kripke.addBadState(curState);
+								isGoodState = false;
 								//this.errState = curState;
 								//returnValue = EC.TLC_INVARIANT_VIOLATED_INITIAL;
 								//throw new InvariantViolatedException();
@@ -1204,12 +1220,34 @@ public class ModelChecker extends AbstractChecker
 					for (int j = 0; j < tool.getImpliedInits().length; j++) {
 						if (!tool.isValid(tool.getImpliedInits()[j], curState)) {
 							// We get here because of implied-inits violation:
-							kripke.addBadState(curState);
+							isGoodState = false;
 							/*MP.printError(EC.TLC_PROPERTY_VIOLATED_INITIAL,
 									new String[] { tool.getImpliedInitNames()[j], tool.evalAlias(curState, curState).toString() });
 							this.errState = curState;
 							returnValue = EC.TLC_PROPERTY_VIOLATED_INITIAL;
 							throw new InvariantViolatedException();*/
+						}
+					}
+				}
+				
+				if (isGoodState) {
+					TLC.currentLTSBuilder().addInitState(curState);
+				} else {
+					TLC.currentLTSBuilder().addBadInitState(curState);
+				}
+				
+				if (isGoodState || TLC.checkBadStates()) {
+					if (inModel) {
+						if (!seen) {
+							long fp = curState.fingerPrint();
+							allStateWriter.writeState(curState);
+							((Worker) workers[0]).writeState(curState, fp);
+							theStateQueue.enqueue(curState);
+
+							// build behavior graph for liveness checking
+							if (checkLiveness) {
+								liveCheck.addInitState(tool.getLiveness(), curState, fp);
+							}
 						}
 					}
 				}

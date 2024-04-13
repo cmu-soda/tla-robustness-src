@@ -4,14 +4,20 @@
 package tlc2.tool;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import tla2sany.semantic.OpDefNode;
 import tla2sany.semantic.SemanticNode;
 import tla2sany.st.Location;
 import tla2sany.st.SyntaxTreeConstants;
 import tla2sany.st.TreeNode;
+import tlc2.Utils;
 import tlc2.tool.coverage.CostModel;
 import tlc2.util.Context;
+import tlc2.value.impl.Value;
 import util.UniqueString;
 
 public final class Action implements ToolGlobals, Serializable {
@@ -57,6 +63,29 @@ public final class Action implements ToolGlobals, Serializable {
 	  // opDef null when action not declared, i.e. Spec == x = 0 /\ ...
 	  // See test64 and test64a and others.
 	  this.opDef = opDef;
+  }
+  
+  public String actionNameWithoutPrams() {
+	  //final String rawActName = this.getName().toString();
+	  //return Utils.firstLetterToLowerCase(rawActName);
+	  return this.getName().toString();
+  }
+  
+  public String actionParams() {
+	  final Map<String, Value> mp = this.con.toStrMap();
+	  return Utils.toArrayList(getOpDef().getParams())
+			  .stream()
+		      .map(p -> p.getSignature()) // the signature is a key for the param value
+		      .map(k -> mp.get(k)) // look up the param value from the key
+		      .map(v -> v.toString().replace("\"", "")) // turn the value into a string
+		      .collect(Collectors.joining("."));
+  }
+  
+  public String actionNameWithParams() {
+	  // add param values to the action
+	  final String actName = this.actionNameWithoutPrams();
+	  final String actSuffix = this.actionParams();
+	  return actSuffix.isEmpty() ? actName : actName + "." + actSuffix;
   }
 
 /* Returns a string representation of this action.  */

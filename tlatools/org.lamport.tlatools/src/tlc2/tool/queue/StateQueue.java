@@ -8,6 +8,7 @@ package tlc2.tool.queue;
 import java.io.IOException;
 
 import tlc2.TLCGlobals;
+import tlc2.Utils;
 import tlc2.output.EC;
 import tlc2.output.MP;
 import tlc2.tool.StateVec;
@@ -76,6 +77,7 @@ public abstract class StateQueue implements IStateQueue {
 	 * @see tlc2.tool.queue.IStateQueue#sEnqueue(tlc2.tool.TLCState[])
 	 */
 	public final synchronized void sEnqueue(final TLCState states[]) {
+		Utils.assertTrue(false, "We do not support batch mode!");
 		for (int i = 0; i < states.length; i++) {
 			this.enqueueInner(states[i]);
 		}
@@ -86,6 +88,7 @@ public abstract class StateQueue implements IStateQueue {
 	}
 	
 	public final synchronized void sEnqueue(final StateVec stateVec) {
+		Utils.assertTrue(false, "We do not support batch mode!");
 		int cnt = 0;
 		for (int j = 0; j < stateVec.size(); j++) {
 			TLCState state = stateVec.elementAt(j);

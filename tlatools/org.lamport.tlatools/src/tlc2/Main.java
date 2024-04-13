@@ -36,6 +36,26 @@ public class Main {
         	System.out.println(Utils.asJson(jsonStrs, jsonLists));
     	}
     	
+    	// invoke the Decomposition Verify algorithm to perform MC using the heuristic for the re-mapping
+    	else if (args.length == 3 && args[0].equals("--verif")) {
+        	Composition.decompVerify(args, "HEURISTIC");
+    	}
+    	
+    	// invoke the Decomposition Verify algorithm to perform MC with a custom re-mapping
+    	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--sc")) {
+        	Composition.decompVerify(args, "CUSTOM");
+    	}
+    	
+    	// invoke the Decomposition Verify algorithm to perform MC with the naive re-mapping
+    	else if (args.length == 4 && args[0].equals("--verif") && args[3].equals("--naive")) {
+        	Composition.decompVerify(args, "NAIVE");
+    	}
+    	
+    	// invoke naive version of the Decomposition Verify algorithm to perform MC
+    	else if (args.length == 3 && args[0].equals("--verif-unif")) {
+        	Composition.decompVerifyUniform(args);
+    	}
+    	
     	// convert a TLA+ spec to FSP
     	else if (args.length == 3 && args[0].equals("--to-fsp")) {
     		Composition.toFSP(args);
@@ -43,7 +63,7 @@ public class Main {
     	
     	// generate the weakest assumption for the spec
     	else if (args.length == 3 && args[0].equals("--wa")) {
-    		Composition.weakestAssumption(args);
+    		Composition.weakestAssumptionNoSink(args);
     	}
     	
     	// compose two TLA+ specs

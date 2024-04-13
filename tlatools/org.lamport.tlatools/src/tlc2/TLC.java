@@ -26,10 +26,12 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import model.InJarFilenameToStream;
 import model.ModelInJar;
 import tla2sany.parser.SyntaxTreeNode;
+import tla2sany.semantic.ModuleNode;
 import tla2sany.semantic.OpApplNode;
 import tla2sany.semantic.OpDefNode;
 import tlc2.debug.TLCDebugger;
@@ -56,7 +58,6 @@ import tlc2.tool.management.TLCStandardMBean;
 import tlc2.util.DotStateWriter;
 import tlc2.util.FP64;
 import tlc2.util.IStateWriter;
-import tlc2.tool.ExtKripke;
 import tlc2.util.NoopStateWriter;
 import tlc2.util.RandomGenerator;
 import tlc2.util.StateWriter;
@@ -87,6 +88,10 @@ import util.UsageGenerator;
 public class TLC {
 
 	private static TLC currentInstance = null;
+	
+	private static boolean modelCheckOnlyGoodStates = false;
+	
+	private static AlphabetMembershipTester alphabetTester = null;
 	
 	public static String getTlcKey() {
 		if (currentInstance == null) {
@@ -164,9 +169,9 @@ public class TLC {
      */
     private final String tlcKey;
     /**
-     * Kripke Structure representing the TLA+ model
+     * Builder class for creating an LTS.
      */
-    private ExtKripke kripke;
+    private LTSBuilder ltsBuilder;
     /**
      * Whether to run in model checking or simulation mode.
      * Defaults to model checking.
@@ -277,8 +282,9 @@ public class TLC {
     /**
      * Default Initialization
      */
+    private static int initCounter = 0;
 	public TLC() {
-		this("default");
+		this("default" + initCounter++);
 	}
     
     /**
@@ -286,7 +292,7 @@ public class TLC {
      */
 	public TLC(final String key) {
 		tlcKey = key;
-		kripke = null;
+		ltsBuilder = null;
         welcomePrinted = false;
         
         runMode = RunMode.MODEL_CHECK;
@@ -308,10 +314,6 @@ public class TLC {
         fpSetConfiguration = new FPSetConfiguration();
 
         params = new HashMap<>();
-	}
-	
-	public ExtKripke getKripke() {
-		return this.kripke;
 	}
     
     public void initialize(final String tla, final String cfg) {
@@ -360,30 +362,49 @@ public class TLC {
 		}
 		
 		// only perform initialization, don't model check
-		tool = new FastTool(mainFile, configFile, resolver, params);
+		try {
+			tool = new FastTool(mainFile, configFile, resolver, params);
+		}
+		catch (Exception e) {
+			System.err.println("Error loading specification \"" + tla + "\" with config file \"" + cfg + "\"");
+			throw e;
+		}
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
     }
     
-    public static void runTLC(final String tla, final String cfg, TLC tlc) {
-    	runTLC(tla, cfg, tlc, true);
+    public void modelCheckOnlyGoodStates(final String tla, final String cfg) {
+    	TLC.modelCheckOnlyGoodStates = true;
+    	modelCheck(tla, cfg, true);
+    	TLC.modelCheckOnlyGoodStates = false;
     }
     
-    public static void runTLC(final String tla, final String cfg, TLC tlc, boolean supressTLCOutput) {
+    public void modelCheck(final String tla, final String cfg, AlphabetMembershipTester alphaTester) {
+    	TLC.alphabetTester = alphaTester;
+    	modelCheck(tla, cfg);
+    	TLC.alphabetTester = null;
+    }
+    
+    public void modelCheck(final String tla, final String cfg) {
+    	modelCheck(tla, cfg, true);
+    }
+    
+    public void modelCheck(final String tla, final String cfg, boolean supressTLCOutput) {
     	if (TLC.currentInstance != null) {
     		throw new RuntimeException("Cannot run multiple instances of TLC at once!");
     	}
-    	TLC.currentInstance = tlc;
+    	TLC.currentInstance = this;
     	
     	final String[] args = new String[] {"-deadlock", "-config", cfg, tla};
     	PrintStream origPrintStream = System.out;
     	if (supressTLCOutput) {
     		System.setOut(TLC.SUPRESS_ALL_OUTPUT_PRINT_STREAM);
     	}
+		this.ltsBuilder = new LTSBuilder();
 
         // Try to parse parameters.
-        if (!tlc.handleParameters(args)) {
+        if (!this.handleParameters(args)) {
             // This is a tool failure. We must exit with a non-zero exit
             // code or else we will mislead system tools and scripts into
             // thinking everything went smoothly.
@@ -394,7 +415,7 @@ public class TLC {
             System.exit(1);
         }
         
-        if (!tlc.checkEnvironment()) {
+        if (!this.checkEnvironment()) {
             System.exit(1);
         }
 
@@ -403,7 +424,7 @@ public class TLC {
 			// There was not spec file given, it instead exists in the
 			// .jar file being executed. So we need to use a special file
 			// resolver to parse it.
-			tlc.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
+			this.setResolver(new InJarFilenameToStream(ModelInJar.PATH));
 		} else {
 			// The user passed us a spec file directly. To ensure we can
 			// recover it during semantic parsing, we must include its
@@ -411,28 +432,60 @@ public class TLC {
 			//
 			// If the spec file has no parent directory, use the "standard"
 			// library paths provided by SimpleFilenameToStream.
-			final String dir = FileUtil.parseDirname(tlc.getMainFile());
+			final String dir = FileUtil.parseDirname(this.getMainFile());
 			if (!dir.isEmpty()) {
-				tlc.setResolver(new SimpleFilenameToStream(dir));
+				this.setResolver(new SimpleFilenameToStream(dir));
 			} else {
-				tlc.setResolver(new SimpleFilenameToStream());
+				this.setResolver(new SimpleFilenameToStream());
 			}
 		}
 		
 		// Execute TLC.
-        final int errorCode = tlc.process();
+        final int errorCode = this.process();
         
         System.setOut(origPrintStream);
         TLC.currentInstance = null;
     }
     
+    public static boolean checkBadStates() {
+    	return !TLC.modelCheckOnlyGoodStates;
+    }
+    
+    public static boolean actionIsSuppressed(final String pref, final String act) {
+    	return TLC.alphabetTester != null && TLC.alphabetTester.actionIsSuppressed(pref, act);
+    }
+    
+    public LTSBuilder getLTSBuilder() {
+    	return this.ltsBuilder;
+    }
+
+    public static LTSBuilder currentLTSBuilder() {
+    	Utils.assertNotNull(TLC.currentInstance, "No current instance!");
+    	return TLC.currentInstance.ltsBuilder;
+    }
+    
+    public Set<String> actionsInSpec() {
+    	final FastTool ft = (FastTool) this.tool;
+    	return Utils.toArrayList(ft.getActions())
+        		.stream()
+        		.map(a -> a.getName().toString())
+        		.collect(Collectors.toSet());
+    }
+    
+    public Set<String> stateVarsInSpec() {
+    	final FastTool ft = (FastTool) this.tool;
+    	return Utils.toArrayList(ft.getVarNames())
+        		.stream()
+        		.collect(Collectors.toSet());
+    }
+    
     public Set<String> stateVariablesUsedInInvariants() {
     	final FastTool ft = (FastTool) this.tool;
-		Set<String> stateVarNames = new HashSet<>();
+		Set<String> stateVars = new HashSet<>();
 		for (final Action inv : ft.getInvariants()) {
-			inv.getOpDef().stateVarVisit(stateVarNames);
+			inv.getOpDef().stateVarVisit(stateVars);
 		}
-		return stateVarNames;
+		return stateVars;
     }
     
     public boolean hasInvariant(final String inv) {
@@ -443,6 +496,102 @@ public class TLC {
     		}
     	}
     	return false;
+    }
+    
+    public int numOccurrencesOutsideOfUNCHANGED(final String var) {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allActions = this.actionsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	return Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+				.filter(d -> allActions.contains(d.getName().toString()))
+				.reduce(0,
+					  (acc, n) -> acc + n.numOccurrencesOutsideOfUNCHANGED(var),
+					  (n, m) -> n + m);
+    }
+    
+    /**
+     * Given a set of vars <vars>, this method will calculate all variables that occur within the same
+     * expressions. We perform this calculation by:
+     * 1. For each variable in <vars>, collect all variables that occur in the same expression as the
+     * 		variable.
+     * 2. Repeat step 1 until fix point.
+     * 
+     * @param vars
+     * @return
+     */
+    public Set<String> stateVarsUsedInSameExprs(Set<String> vars) {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allVars = this.stateVarsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+    			.collect(Collectors.toList());
+    	
+    	// main logic
+    	boolean reachedFixPoint = false;
+    	while (!reachedFixPoint) {
+    		reachedFixPoint = true;
+    		for (OpDefNode n : moduleNodes) {
+    			final Set<String> untouchedStateVars = Utils.setMinus(allVars, vars);
+    			// Step 1
+				final Set<String> additionalVars = n.stateVarsThatOccurInVars(untouchedStateVars, vars, moduleNodes);
+				if (!vars.containsAll(additionalVars)) {
+					reachedFixPoint = false; // Step 2
+					vars.addAll(additionalVars);
+				}
+    		}
+    	}
+    	
+    	return vars;
+    }
+
+    /**
+     * Given a set of <vars>, this method will calculate all variables that occur (as guards / primed)
+     * in the same actions where each v \in <vars> occurs.
+     * Each var in <vars> is guaranteed to NOT be in the return value.
+     * @param vars
+     * @return
+     */
+    public Set<String> stateVarsInSameAction(Set<String> vars) {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allVars = this.stateVarsInSpec();
+    	final Set<String> allActions = this.actionsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+    			.collect(Collectors.toList());
+    	
+    	// main logic
+    	Set<String> ocurrsWithVars = new HashSet<>();
+		for (OpDefNode n : moduleNodes) {
+			final String actionName = n.getName().toString();
+			if (allActions.contains(actionName)) {
+				final Set<String> occurringStateVars = n.stateVarsOutsideOfUNCHANGED(allVars, moduleNodes);
+				if (!Utils.intersection(occurringStateVars, vars).isEmpty()) {
+					// this action contains at least one var in <vars>. we therefore add all vars that occur
+					// in this action to ocurrsWithVars
+					ocurrsWithVars.addAll(occurringStateVars);
+				}
+			}
+		}
+		
+    	return Utils.setMinus(ocurrsWithVars, vars);
     }
     
     
@@ -866,6 +1015,8 @@ public class TLC {
                 index++;
                 if (index < args.length)
                 {
+                	Utils.assertTrue(false, "No longer supported!");
+                	/*
                     try {
 						// Most problems will only show when TLC eventually tries
 						// to write to the file.
@@ -873,7 +1024,7 @@ public class TLC {
         			} catch (IOException e) {
                         printErrorMsg("Error: Failed to create user output log file.");
                         return false;
-        			}
+        			}*/
                 } else
                 {
                     printErrorMsg("Error: need to specify the full qualified file.");
@@ -1275,8 +1426,6 @@ public class TLC {
 							startTime);
 					modelCheckerMXWrapper = new ModelCheckerMXWrapper((ModelChecker) TLCGlobals.mainChecker, this);
 					result = TLCGlobals.mainChecker.modelCheck();
-					//idardik
-					kripke = TLCGlobals.mainChecker.getKripke();
                 } else
                 {
 					TLCGlobals.mainChecker = new DFIDModelChecker(tool, metadir, stateWriter, deadlock, fromChkpt, startTime);

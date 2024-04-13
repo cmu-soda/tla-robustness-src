@@ -1,9 +1,8 @@
 package tlc2;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,12 +14,6 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import tla2sany.semantic.OpDefNode;
-import tlc2.tool.Action;
-import tlc2.tool.EKState;
-import tlc2.tool.TLCState;
-import tlc2.value.impl.Value;
 
 public class Utils {
 	private static final String QUOTE = "\"";
@@ -70,6 +63,69 @@ public class Utils {
     }
     
     
+    /* utils over relations */
+    
+    /**
+     * Compute the transitive closure over the given relation. This method mutates the input parameter.
+     * @param relation
+     */
+    public static void transitiveClosure(Set<Pair<String,String>> relation) {
+    	boolean reachedClosure = false;
+    	while (!reachedClosure) {
+    		reachedClosure = true;
+    		for (Pair<String,String> e1 : relation) {
+        		for (Pair<String,String> e2 : relation) {
+        			if (!e1.equals(e2) && e1.second.equals(e2.first)) {
+        				// in this case we should have: (e1.first,e2.second) \in relation
+        				Pair<String,String> trans = new Utils.Pair<>(e1.first,e2.second);
+        				if (!relation.contains(trans)) {
+        					relation.add(trans);
+        					reachedClosure = false;
+        					break;
+        				}
+        			}
+        		}
+        		if (!reachedClosure) {
+        			break;
+        		}
+    		}
+    		// break to here
+    	}
+    }
+    
+    /**
+     * Assumes that <relation> has a unique largest element. <relation> can be a partial or total
+     * ordering.
+     * @param relation
+     * @return
+     */
+    public static String largestElement(final Set<Pair<String,String>> relation) {
+    	// if there is a unique largest element, it must occur as the first element in each pair in <relation>
+    	final Set<String> elems = relation
+    			.stream()
+    			.map(e -> e.first)
+    			.collect(Collectors.toSet());
+    	for (final String cand : elems) {
+    		boolean isLargest = true;
+    		for (final Pair<String,String> e : relation) {
+    			if (!cand.equals(e.first) && cand.equals(e.second)) {
+    				// <cand> is smaller than some element in <relation> and hence cannot be the largest
+    				isLargest = false;
+    				break;
+    			}
+    		}
+    		if (isLargest) {
+	    		// at this point, no element is larger than <cand>
+	    		return cand;
+    		}
+    	}
+    	
+    	// if there is a largest element then we should not reach this line
+    	Utils.assertTrue(false, "No largest element detected!");
+    	return null;
+    }
+    
+    
     public static int maxNegExamples() {
     	if (System.getenv().containsKey(MAX_NEG_EXAMPLES_ENV_VAR_KEY)) {
     		final String sval = System.getenv().get(MAX_NEG_EXAMPLES_ENV_VAR_KEY);
@@ -81,39 +137,49 @@ public class Utils {
     	}
     	return DEFAULT_MAX_NEG_EXAMPLES;
     }
-    
-    
-    /* action utils */
-    
-    public static List<String> actionParams(Action act) {
-    	final Map<String, Value> mp = act.con.toStrMap();
-    	final OpDefNode opNode = act.getOpDef();
-    	// use list so we get the keys in the right order
-    	return Utils.toArrayList(opNode.getParams())
-        		.stream()
-        		.map(p -> p.getSignature())
-        		.collect(Collectors.toList());
-    }
 
 	
 	/* Because assert() doesn't seem to work */
 	
+	public static void exitAssert(final boolean condition, final String msg) {
+		if (!condition) {
+			System.err.println("\nexitAssert failed with message: " + msg);
+			System.exit(1);
+		}
+	}
+	
 	public static void assertTrue(final boolean condition, final String msg) {
 		if (!condition) {
+			System.err.println("\n\n!!! assertTrue failed with message: " + msg + "\n\n");
 			throw new RuntimeException(msg);
 		}
 	}
 	
 	public static void assertNull(final Object obj, final String msg) {
 		if (obj != null) {
+			System.err.println("\n\n!!! assertNull failed with message: " + msg + "\n\n");
 			throw new RuntimeException("Null assertion failed with message: " + msg);
 		}
 	}
 	
 	public static void assertNotNull(final Object obj, final String msg) {
 		if (obj == null) {
+			System.err.println("\n\n!!! assertNotNull failed with message: " + msg + "\n\n");
 			throw new RuntimeException("Not-null assertion failed with message: " + msg);
 		}
+	}
+	
+	
+	public static String firstLetterToUpperCase(final String str) {
+		  char c[] = str.toCharArray();
+		  c[0] = Character.toUpperCase(c[0]);
+		  return new String(c);
+	}
+	
+	public static String firstLetterToLowerCase(final String str) {
+		  char c[] = str.toCharArray();
+		  c[0] = Character.toLowerCase(c[0]);
+		  return new String(c);
 	}
 	
 	
@@ -146,11 +212,18 @@ public class Utils {
     	}
     	return elem;
     }
-	
     
-    public static ArrayList<Pair<String,String>> extractKeyValuePairsFromState(EKState tlaState) {
-    	return extractKeyValuePairsFromState(tlaState.toString());
+    public static <T> T chooseOne(Set<T> s) {
+    	Utils.assertTrue(!s.isEmpty(), "Called chooseOne() on an empty set");
+    	return s.iterator().next();
     }
+    
+    public static <T> Set<T> setOf(T elem) {
+    	Set<T> s = new HashSet<>();
+    	s.add(elem);
+    	return s;
+    }
+	
     
     public static ArrayList<Pair<String,String>> extractKeyValuePairsFromState(String tlaState) {
     	ArrayList<Pair<String,String>> kvPairs = new ArrayList<>();
@@ -346,13 +419,28 @@ public class Utils {
     
     public static void writeFile(String file, String contents) {
     	try {
-    		BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-    	    writer.write(contents);
+    		FileOutputStream writer = new FileOutputStream(file);
+    	    writer.write(contents.getBytes(), 0, contents.length());
     	    writer.close();
     	}
     	catch (IOException e) {
     		throw new RuntimeException("Failed to write to file: " + file + "!");
     	}
+    }
+    
+    public static void copyFile(String src, String dst) {
+    	try {
+  	      Scanner scan = new Scanner(new File(src));
+	  	  FileOutputStream writer = new FileOutputStream(dst);
+  	      while (scan.hasNextLine()) {
+  	        final String line = scan.nextLine() + "\n";
+		    writer.write(line.getBytes(), 0, line.length());
+  	      }
+  	      scan.close();
+		  writer.close();
+  	    } catch (IOException e) {
+  	      e.printStackTrace();
+  	    }
     }
     
     public static ArrayList<String> fileContents(String loc) {
