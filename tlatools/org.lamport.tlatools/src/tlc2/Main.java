@@ -81,7 +81,8 @@ public class Main {
     	
     	// invalid args, display usage
     	else {
-    		System.out.println("usage: tlc-ian <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--prop|--env|--cmp");
+    		System.out.println("usage: recomp-verify <flag> <output_loc> <spec1> <cfg1> [<spec2> <cfg2>]\nflag=--verif|--prop|--env|--cmp");
     	}
+		System.exit(0);
     }
 }

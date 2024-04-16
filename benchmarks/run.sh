@@ -16,14 +16,14 @@ do
     echo "Benchmark ${i}: ${bench}" 
     if [[ "${flag}" = "" ]]
     then
-        timeout --foreground 10m time -h -o time.txt python3 "${recomp_verify}" "${n}.tla" "${n}.cfg"
+        /usr/bin/time -h -o time.txt timeout --foreground 10m python3 "${recomp_verify}" "${n}.tla" "${n}.cfg"
     else
-        timeout --foreground 10m time -h -o time.txt python3 "${recomp_verify}" "${n}.tla" "${n}.cfg" "${flag}"
+        /usr/bin/time -h -o time.txt timeout --foreground 10m python3 "${recomp_verify}" "${n}.tla" "${n}.cfg" "${flag}"
     fi
-    wall=$(cat time.txt | sed 's/real.*$//g' | tr -d ' \t\r')
-    if [[ "${wall}" = "" ]]
+    wall="NA"
+    if [[ -f time.txt ]]
     then
-        wall=$(cat time.txt)
+        wall=$(cat time.txt | sed 's/real.*$//g' | tr -d ' \t\r')
     fi
     rm -f time.txt
     echo "Run time: ${wall}"

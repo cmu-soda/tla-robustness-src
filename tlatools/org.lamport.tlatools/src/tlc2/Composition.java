@@ -302,7 +302,7 @@ public class Composition {
         	
         	final List<String> group = componentGroupings.get(i);
         	final String composedStr = String.join(" || ", group);
-			System.err.println(aSpec + " = " + composedStr);
+			System.out.println(aSpec + " = " + composedStr);
 			
         	tla = bSpec;
         	cfg = "no_invs.cfg";
@@ -319,7 +319,7 @@ public class Composition {
         		final int finalIdx = iter;
             	final List<String> finalGroup = componentGroupings.get(finalIdx);
             	final String composedStr = String.join(" || ", finalGroup);
-    			System.err.println(name + finalIter + " = " + composedStr);
+    			System.out.println(name + finalIter + " = " + composedStr);
     		}
     	}
     	else {
@@ -466,7 +466,7 @@ public class Composition {
 				for (String s : grCmptSet) {
 					System.err.println("  " + s);
 				}
-				Utils.assertTrue(false, "Invalid custom grouping!");
+				Utils.assertTrue(false, "Invalid custom recomp map!");
 			}
 		}
 		// naive re-mapping
