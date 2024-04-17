@@ -305,6 +305,32 @@ public abstract class SemanticNode
 					  (n, m) -> Utils.union(n, m));
   }
   
+  public Set<String> primedStateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  return primedStateVarsOutsideOfUNCHANGED(varNames, defExpansionNodes, false);
+  }
+  
+  protected Set<String> primedStateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes, boolean inPrime) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce((Set<String>)new HashSet<String>(),
+					  (acc, n) -> Utils.union(acc, n.primedStateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes,inPrime)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  public Set<String> unprimedStateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  if (getChildren() == null) {
+		  return new HashSet<String>();
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce((Set<String>)new HashSet<String>(),
+					  (acc, n) -> Utils.union(acc, n.unprimedStateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
   public int numOccurrencesOutsideOfUNCHANGED(final String var) {
 	  if (getChildren() == null) {
 		  return 0;

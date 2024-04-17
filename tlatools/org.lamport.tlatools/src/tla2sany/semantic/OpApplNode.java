@@ -686,6 +686,87 @@ public class OpApplNode extends ExprNode implements ExploreNode {
   }
   
   @Override
+  protected Set<String> primedStateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes, boolean inPrime) {
+	  Set<String> vars = new HashSet<>();
+	  
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  
+	  // do not search through UNCHANGED blocks
+	  if (isUnchangedOp(opKey)) {
+		  return vars;
+	  }
+	  
+	  inPrime = inPrime || isPrimeOp(opKey);
+	  
+	  // add state variables if it's primed
+	  if (inPrime && varNames.contains(opKey)) {
+		  vars.add(opKey);
+	  }
+	  
+	  // if the node is a user defined op then we need to search the def for state vars
+	  final List<OpDefNode> opDefinition = defExpansionNodes
+			  .stream()
+			  .filter(n -> opKey.equals(n.getName().toString()))
+			  .collect(Collectors.toList());
+	  Utils.assertTrue(opDefinition.size() <= 1, "Multiple moduleNodes with the same name is not possible!");
+	  final boolean isUserDefinedOp = opDefinition.size() > 0;
+	  if (isUserDefinedOp) {
+		  final OpDefNode defNode = opDefinition.get(0);
+		  vars.addAll(defNode.primedStateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes,inPrime));
+	  }
+	  
+	  if (getChildren() == null) {
+		  return vars;
+	  }
+	  final boolean finalInPrime = inPrime;
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.primedStateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes,finalInPrime)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  @Override
+  public Set<String> unprimedStateVarsOutsideOfUNCHANGED(final Set<String> varNames, final List<OpDefNode> defExpansionNodes) {
+	  Set<String> vars = new HashSet<>();
+	  
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  
+	  // do not search through UNCHANGED blocks or primed vars
+	  if (isUnchangedOp(opKey) || isPrimeOp(opKey)) {
+		  return vars;
+	  }
+	  
+	  // add state variables
+	  if (varNames.contains(opKey)) {
+		  vars.add(opKey);
+	  }
+	  
+	  // if the node is a user defined op then we need to search the def for state vars
+	  final List<OpDefNode> opDefinition = defExpansionNodes
+			  .stream()
+			  .filter(n -> opKey.equals(n.getName().toString()))
+			  .collect(Collectors.toList());
+	  Utils.assertTrue(opDefinition.size() <= 1, "Multiple moduleNodes with the same name is not possible!");
+	  final boolean isUserDefinedOp = opDefinition.size() > 0;
+	  if (isUserDefinedOp) {
+		  final OpDefNode defNode = opDefinition.get(0);
+		  vars.addAll(defNode.unprimedStateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes));
+	  }
+	  
+	  if (getChildren() == null) {
+		  return vars;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .reduce(vars,
+					  (acc, n) -> Utils.union(acc, n.unprimedStateVarsOutsideOfUNCHANGED(varNames,defExpansionNodes)),
+					  (n, m) -> Utils.union(n, m));
+  }
+  
+  @Override
   public int numOccurrencesOutsideOfUNCHANGED(final String var) {
 	  final SymbolNode opNode = this.getOperator();
 	  final String opKey = opNode.getName().toString();

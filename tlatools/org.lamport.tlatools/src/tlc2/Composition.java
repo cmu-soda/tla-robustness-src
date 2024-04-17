@@ -261,6 +261,38 @@ public class Composition {
 		return components;
 	}
 	
+	/**
+	 * Given two specifications <c1> and <c2>, this method will compute whether there is an action in the monolithic
+	 * spec that refers to the variables of both <c1> and <c2>. In particular, this method will check if the variables
+	 * that occur together are both primed or both unprimed.
+	 * @param tla the monolithic spec
+	 * @param cfg
+	 * @param c1
+	 * @param c2
+	 * @return
+	 */
+	private static boolean varsOverlapInAtLeastOneAction(final String tla, final String cfg, final String c1, final String c2) {
+		TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	
+    	final String noInvsCfg = "no_invs.cfg";
+		TLC c1Tlc = new TLC();
+    	c1Tlc.initialize(c1, noInvsCfg);
+		TLC c2Tlc = new TLC();
+    	c2Tlc.initialize(c2, noInvsCfg);
+    	
+    	final Set<String> c1StateVars = c1Tlc.stateVarsInSpec();
+    	final Set<String> c2StateVars = c2Tlc.stateVarsInSpec();
+    	
+    	// start of primed/unprimed specific code
+    	final Set<String> primedStateVarsWithC1 = tlc.oneModeOfStateVarsInSameAction(c1StateVars, true);
+    	final Set<String> unprimedStateVarsWithC1 = tlc.oneModeOfStateVarsInSameAction(c1StateVars, false);
+    	
+    	return !Utils.intersection(primedStateVarsWithC1, c2StateVars).isEmpty() &&
+    			!Utils.intersection(unprimedStateVarsWithC1, c2StateVars).isEmpty();
+    	//return !Utils.intersection(tlc.stateVarsInSameAction(c1StateVars), c2StateVars).isEmpty();
+	}
+	
 	private static String makeIntoSpec(final String specName, final String specBody) {
         final String specDecl = "--------------------------- MODULE " + specName + " ---------------------------";
         final String endModule = "=============================================================================";
@@ -437,7 +469,7 @@ public class Composition {
 				.collect(Collectors.toList());
 		
 		final boolean useHeuristic = !recompType.equals("CUSTOM") && !recompType.equals("NAIVE");
-		final List<String> orderdComponents = useHeuristic ? dataFlowOrdering(tla, cfg, trimmedComponents) : trimmedComponents;
+		final List<String> orderedComponents = useHeuristic ? dataFlowOrdering(tla, cfg, trimmedComponents) : trimmedComponents;
 		
 		List<List<String>> groupings = new ArrayList<>();
 		
@@ -450,7 +482,7 @@ public class Composition {
 				.forEach(a -> groupings.add(a));
 			
 			// sanity check
-			final Set<String> rawCmptSet = orderdComponents.stream().collect(Collectors.toSet());
+			final Set<String> rawCmptSet = orderedComponents.stream().collect(Collectors.toSet());
 			final Set<String> grCmptSet = groupings
 					.stream()
 					.reduce((Set<String>) new HashSet<String>(),
@@ -471,26 +503,29 @@ public class Composition {
 		}
 		// naive re-mapping
 		else if (recompType.equals("NAIVE")) {
-			for (final String c : orderdComponents) {
+			for (final String c : orderedComponents) {
 				groupings.add(List.of(c));
 			}
 		}
 		// by default we create the re-mapping using the heuristic
 		else {
-			List<String> group1 = new ArrayList<>();
-			for (int i = 1; i < orderdComponents.size()-1; ++i) {
-				group1.add(orderdComponents.get(i));
-			}
-			groupings.add(List.of(orderdComponents.get(0)));
-			if (group1.size() > 0) {
-				groupings.add(group1);
-			}
-			if (orderdComponents.size() > 1) {
-				groupings.add(List.of(orderdComponents.get(orderdComponents.size()-1)));
+			List<String> curGroup = new LinkedList<>();
+			groupings.add(curGroup);
+			String prevComponent = orderedComponents.get(0);
+			curGroup.add(prevComponent);
+			for (int i = 1; i < orderedComponents.size(); ++i) {
+				final String curComponent = orderedComponents.get(i);
+				// only group adjacent components together if their vars overlap in at least one action
+				if (!varsOverlapInAtLeastOneAction(tla, cfg, prevComponent, curComponent)) {
+					curGroup = new LinkedList<>();
+					groupings.add(curGroup);
+				}
+				curGroup.add(curComponent);
+				prevComponent = curComponent;
 			}
 		}
 		
-		final boolean allCompoments = orderdComponents.size() == rawComponents.size();
+		final boolean allCompoments = orderedComponents.size() == rawComponents.size();
 		return decompForSymbolicCompose(tla, cfg, groupings, allCompoments);
 	}
     
