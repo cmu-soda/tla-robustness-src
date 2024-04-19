@@ -343,6 +343,20 @@ public abstract class SemanticNode
   }
   
   /**
+   * Returns whether or not an action (or more generally, an expression) is guarded. More specifically, we
+   * return true iff there exists at least one conjunct in the expression that contains no primes.
+   * @return
+   */
+  public boolean isGuarded() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+	  return Utils.toArrayList(getChildren())
+			  .stream()
+			  .anyMatch(c -> c.isGuarded());
+  }
+  
+  /**
    * WARNING: this method is untested.
    * @param varNames
    * @param defExpansionNodes

@@ -791,6 +791,27 @@ public class OpApplNode extends ExprNode implements ExploreNode {
 					  (n, m) -> n + m);
   }
   
+  @Override
+  public boolean isGuarded() {
+	  if (getChildren() == null) {
+		  return false;
+	  }
+
+	  final SymbolNode opNode = this.getOperator();
+	  final String opKey = opNode.getName().toString();
+	  if (opKey.equals("$ConjList")) {
+		  // check each conjunct separately. do not consider UNCHANGED conjuncts though.
+		  return Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> !c.hasUnchangedNode() && !c.hasPrimedOp());
+	  }
+	  else {
+		  return Utils.toArrayList(getChildren())
+				  .stream()
+				  .anyMatch(c -> c.isGuarded());
+	  }
+  }
+  
   /**
    * WARNING: this method is untested.
    */

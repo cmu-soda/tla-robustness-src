@@ -260,6 +260,36 @@ public class Composition {
     	
 		return components;
 	}
+
+	/**
+	 * Returns whether the state vars in the given <component> occur alone (without any other vars) in at
+	 * least one action in the monolithic spec.
+	 * @param tla
+	 * @param cfg
+	 * @param component
+	 * @return
+	 */
+	private static boolean varsAppearAloneInAtLeastOneAction(final String tla, final String cfg, final String component) {
+		TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	
+    	final String noInvsCfg = "no_invs.cfg";
+		TLC componentTlc = new TLC();
+		componentTlc.initialize(component, noInvsCfg);
+    	final Set<String> componentVars = componentTlc.stateVarsInSpec();
+    	
+    	// look through each action. if there exists an action with only state vars that are a subset of
+    	// <componentVars> then we return true. otherwise, false.
+    	final Map<String,Set<String>> varsPerAction = tlc.stateVarsPerAction();
+    	for (final String act : tlc.actionsInSpec()) {
+    		final Set<String> actVars = varsPerAction.get(act);
+    		//!tlc.actionIsGuarded(act) && 
+    		if (componentVars.containsAll(actVars)) {
+    			return true;
+    		}
+    	}
+    	return false;
+	}
 	
 	/**
 	 * Given two specifications <c1> and <c2>, this method will compute whether there is an action in the monolithic
@@ -515,8 +545,10 @@ public class Composition {
 			curGroup.add(prevComponent);
 			for (int i = 1; i < orderedComponents.size(); ++i) {
 				final String curComponent = orderedComponents.get(i);
+				// if the vars of a component occur alone in at least one action then do not group it with the previous component. otherwise:
 				// only group adjacent components together if their vars overlap in at least one action
-				if (!varsOverlapInAtLeastOneAction(tla, cfg, prevComponent, curComponent)) {
+				if (varsAppearAloneInAtLeastOneAction(tla, cfg, curComponent) ||
+						!varsOverlapInAtLeastOneAction(tla, cfg, prevComponent, curComponent)) {
 					curGroup = new LinkedList<>();
 					groupings.add(curGroup);
 				}

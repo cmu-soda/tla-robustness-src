@@ -627,6 +627,51 @@ public class TLC {
     	return Utils.setMinus(ocurrsWithVars, vars);
     }
     
+    public Map<String,Set<String>> stateVarsPerAction() {
+    	final FastTool ft = (FastTool) this.tool;
+    	final Set<String> allVars = this.stateVarsInSpec();
+    	final Set<String> allActions = this.actionsInSpec();
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+    			.collect(Collectors.toList());
+    	
+    	// main logic
+    	Map<String,Set<String>> varToActionMap = new HashMap<>();
+		for (OpDefNode n : moduleNodes) {
+			final String actionName = n.getName().toString();
+			if (allActions.contains(actionName)) {
+				final Set<String> occurringStateVars = n.stateVarsOutsideOfUNCHANGED(allVars, moduleNodes);
+				varToActionMap.put(actionName, occurringStateVars);
+			}
+		}
+		
+    	return varToActionMap;
+    }
+    
+    public boolean actionIsGuarded(final String act) {
+    	final FastTool ft = (FastTool) this.tool;
+    	
+    	// get the top level module and all op def nodes
+    	final String moduleName = this.getModelName();
+    	final ModuleNode mn = ft.getModule(moduleName);
+    	final List<OpDefNode> moduleNodes = Utils.toArrayList(mn.getOpDefs())
+    			.stream()
+				// only retain module for the .tla file
+				.filter(d -> moduleName.equals(d.getOriginallyDefinedInModuleNode().getName().toString()))
+				.filter(d -> act.equals(d.getName().toString()))
+    			.collect(Collectors.toList());
+    	Utils.assertTrue(moduleNodes.size() == 1, "Invalid action given as input!");
+    	
+    	final OpDefNode actNode = moduleNodes.get(0);
+    	return actNode.isGuarded();
+    }
+    
     
 	// false if the environment (JVM, OS, ...) makes model checking impossible.
 	// Might also result in warnings.
