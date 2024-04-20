@@ -11,10 +11,10 @@ import java.util.Set;
 import tla2sany.semantic.ExprNode;
 import tla2sany.semantic.OpDefNode;
 import tlc2.RobustDiffRep.SpecScope;
+import tlc2.Utils.Pair;
 import tlc2.tool.Action;
 import tlc2.tool.EKState;
 import tlc2.tool.ExtKripke;
-import tlc2.Utils.Pair;
 import tlc2.tool.impl.FastTool;
 
 public class Robustness {

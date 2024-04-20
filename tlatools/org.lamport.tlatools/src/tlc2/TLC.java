@@ -672,6 +672,18 @@ public class TLC {
     	return actNode.isGuarded();
     }
     
+    public static Set<String> stateVarsInSpec(final String tla, final String cfg) {
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	return tlc.stateVarsInSpec();
+    }
+    
+    public static Set<String> actionsInSpec(final String tla, final String cfg) {
+    	TLC tlc = new TLC();
+    	tlc.initialize(tla, cfg);
+    	return tlc.actionsInSpec();
+    }
+    
     
 	// false if the environment (JVM, OS, ...) makes model checking impossible.
 	// Might also result in warnings.

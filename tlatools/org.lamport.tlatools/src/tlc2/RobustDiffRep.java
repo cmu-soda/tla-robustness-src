@@ -11,13 +11,13 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import tlc2.Utils.Pair;
 import tlc2.tool.EKState;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.StateVarBasicType;
 import tlc2.tool.StateVarFunctionType;
 import tlc2.tool.StateVarType;
 import tlc2.tool.StateVariable;
-import tlc2.Utils.Pair;
 
 
 public class RobustDiffRep {

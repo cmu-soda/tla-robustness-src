@@ -29,9 +29,10 @@ def create_err_trace(txt):
 def verify(spec, cfg, cust, naive, verbose):
     # run model checking alg
     # use subprocess.call to send the output to stdout
-    cmd_args = ["java", "-Xmx25g", "-jar", tool, "--verif", spec, cfg]
+    cmd_args = ["java", "-Xmx25g", "-jar", tool, spec, cfg]
     if cust:
-        cmd_args.append("--sc")
+        cmd_args.append("--cust")
+        cmd_args.append("custom_recomp.csv")
     if naive:
         cmd_args.append("--naive")
     if verbose:
