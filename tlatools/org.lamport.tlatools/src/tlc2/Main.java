@@ -38,7 +38,6 @@ public class Main {
     		System.out.println("usage: recomp-verify <spec> <cfg> [--naive] [--cust <recomp-file>] [--verbose]\n"
     				+ "* --naive and --cust are mutually exclusive");
     	}
-		System.exit(0);
     }
     
     private static boolean hasFlag(String[] args, final String flag) {
