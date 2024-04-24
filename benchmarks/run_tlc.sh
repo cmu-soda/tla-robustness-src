@@ -17,7 +17,7 @@ do
     pushd "$d" >> /dev/null
     echo "Benchmark ${i}: ${bench}" 
 
-    /usr/bin/time -h -o time.txt timeout --foreground -s KILL "${max_time}" java -jar "${tlc}" -deadlock "${n}.tla"
+    /usr/bin/time -h -o time.txt timeout --foreground -s KILL "${max_time}" java -jar "${tlc}" -deadlock "${n}.tla" -workers 4
     sleep 1
 
     wall="NA"

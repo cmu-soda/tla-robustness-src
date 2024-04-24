@@ -1,5 +1,9 @@
 package tlc2;
 
+import java.util.List;
+
+import recomp.Composition;
+import recomp.Decomposition;
 import recomp.RecompVerify;
 
 public class Main {
@@ -19,24 +23,40 @@ public class Main {
     	if (args.length >= 2) {
     		final String tla = args[0];
     		final String cfg = args[1];
-    		final boolean verbose = hasFlag(args, "--verbose");
-    		final boolean custom = hasFlag(args, "--cust");
-    		final boolean naive = hasFlag(args, "--naive");
-    		//final boolean heuristic = !custom && !naive;
-    		final String recompFile = custom ? positionalArg(args, "--cust") : "";
+    		final boolean decompose = hasFlag(args, "--decomp");
     		
-    		// TODO ian this is lazy
-    		Utils.assertTrue(!custom || !recompFile.isEmpty(), "--cust must be followed by a recomp file!");
-    		Utils.assertTrue(!(custom && naive), "--custom and --naive are mutually exclusive options!");
-    		
-    		final String recompStrategy = custom ? "CUSTOM" : naive ? "NAIVE" : "HEURISTIC";
-    		RecompVerify.recompVerify(tla, cfg, recompStrategy, recompFile, verbose);
+    		if (decompose) {
+    			// write a config without any invariants / properties
+    	    	final String noInvsCfg = "no_invs.cfg";
+    	    	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
+    	    	
+    			// only decompose the spec. this is primarily used as pre-processing for the parallel algorithm
+    			final List<String> components = Decomposition.decompAll(tla, cfg);
+    			final List<String> trimmedComponents = Composition.orderedTrimmedComponents(tla, cfg, components);
+    		 	System.out.println(String.join(",", trimmedComponents));
+    		}
+    		else {
+    			// run recomp-verify
+        		final boolean verbose = hasFlag(args, "--verbose");
+        		final boolean custom = hasFlag(args, "--cust");
+        		final boolean naive = hasFlag(args, "--naive");
+        		//final boolean heuristic = !custom && !naive;
+        		final String recompFile = custom ? positionalArg(args, "--cust") : "";
+        		
+        		// TODO ian this is lazy
+        		Utils.assertTrue(!custom || !recompFile.isEmpty(), "--cust must be followed by a recomp file!");
+        		Utils.assertTrue(!(custom && naive), "--custom and --naive are mutually exclusive options!");
+        		
+        		final String recompStrategy = custom ? "CUSTOM" : naive ? "NAIVE" : "HEURISTIC";
+        		RecompVerify.recompVerify(tla, cfg, recompStrategy, recompFile, verbose);
+    		}
     	}
     	
     	// invalid args, display usage
     	else {
-    		System.out.println("usage: recomp-verify <spec> <cfg> [--naive] [--cust <recomp-file>] [--verbose]\n"
-    				+ "* --naive and --cust are mutually exclusive");
+    		System.out.println("usage1: recomp-verify <spec> <cfg> [--naive] [--cust <recomp-file>] [--verbose]\n"
+    				+ "usage2: recomp-verify <spec> <cfg> --decomp\n"
+    				+ "* in usage1: --naive and --cust are mutually exclusive");
     	}
     }
     

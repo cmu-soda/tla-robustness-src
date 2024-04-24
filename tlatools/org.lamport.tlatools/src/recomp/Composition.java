@@ -18,6 +18,17 @@ import tlc2.tool.impl.FastTool;
 
 public class Composition {
 	
+	public static List<String> orderedTrimmedComponents(final String tla, final String cfg, final List<String> rawComponents) {
+		final Set<String> neededComponents = interfaceOrdering(rawComponents)
+				.stream()
+				.collect(Collectors.toSet());
+		final List<String> trimmedComponents = rawComponents
+				.stream()
+				.filter(c -> neededComponents.contains(c))
+				.collect(Collectors.toList());
+		return dataFlowOrdering(tla, cfg, trimmedComponents);
+	}
+	
 	public static List<String> symbolicCompose(final String tla, final String cfg,
 			final String recompType, final String recompFile, final List<String> rawComponents) {
 		// interfaceOrdering() trims unneeded components. Don't use the ordering, but do use it to trim components.

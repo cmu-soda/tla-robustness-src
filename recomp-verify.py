@@ -1,8 +1,11 @@
+import concurrent.futures
 import glob
 import os
+import signal
 import shutil
 import subprocess
 import sys
+from functools import partial
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 tool = root_dir + "/bin/recomp-verify.jar"
@@ -12,6 +15,11 @@ def write(name, contents):
     f = open(name, "w")
     f.write(contents)
     f.close()
+
+def decomp(spec, cfg):
+    cmd_args = ["java", "-jar", tool, spec, cfg, "--decomp"]
+    ret = subprocess.run(cmd_args, capture_output=True, text=True)
+    return ret.stdout.rstrip().split(",")
 
 def create_err_trace(txt):
     lines = txt.split("\n")
@@ -50,23 +58,7 @@ def verify(spec, cfg, cust, naive, verbose):
         else:
             print("Could not confirm the violating trace in the TLA+ spec; this is a bug in the tool.")
 
-def run():
-    if (len(sys.argv) < 3 or len(sys.argv) > 5):
-        print("usage: recomp-verify.py [--cust] <file.tla> <file.cfg>")
-        return
-    if (len(sys.argv) == 4 and sys.argv[3] != "--cust" and sys.argv[3] != "--naive" and sys.argv[3] != "--verbose"):
-        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
-        return
-    if (len(sys.argv) == 5 and sys.argv[4] != "--cust" and sys.argv[4] != "--naive" and sys.argv[4] != "--verbose"):
-        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
-        return
-
-    spec = sys.argv[1]
-    cfg = sys.argv[2]
-    cust = (len(sys.argv) >= 4 and sys.argv[3] == "--cust") or (len(sys.argv) >= 5 and sys.argv[4] == "--cust")
-    naive = (len(sys.argv) >= 4 and sys.argv[3] == "--naive") or (len(sys.argv) >= 5 and sys.argv[4] == "--naive")
-    verbose = (len(sys.argv) >= 4 and sys.argv[3] == "--verbose") or (len(sys.argv) >= 5 and sys.argv[4] == "--verbose")
-
+def verify_single_process(spec, cfg, cust, naive, verbose):
     orig_dir = os.getcwd()
     os.makedirs("out", exist_ok=True)
     dest_dir = orig_dir + "/out"
@@ -80,4 +72,112 @@ def run():
     verify(spec, cfg, cust, naive, verbose)
     os.chdir(orig_dir)
 
+def verify_capture_output(spec, cfg, pdir, *args):
+    shutil.copy(spec, pdir+"/")
+    shutil.copy(cfg, pdir+"/")
+    #os.chdir(pdir)
+    #write("out.log","")
+
+    cmd_args = ["java", "-Xmx7g", "-jar", tool, spec, cfg]
+    for arg in args:
+        cmd_args.append(arg)
+
+    #naive_log = open("out.log","w")
+    #process = subprocess.Popen(cmd_args, stdout=naive_log.fileno())
+    #process.wait()
+    #return open("naive/out.log").read().rstrip()
+    #ret = subprocess.run(cmd_args, capture_output=True, text=True)
+
+    cd_args = ["cd",pdir]
+    cmd = " ".join(cd_args) + "; " + " ".join(cmd_args)
+    ret = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+
+    return ret.stdout.rstrip()
+
+def run_multi_verif(dest_dir, spec, cfg):
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+    futures = []
+
+    # spawn a process for the naive map
+    f = partial(verify_capture_output, spec, cfg, "naive", "--naive")
+    futures.append( executor.submit(f) )
+
+    # spawn a process for each recomp map
+    pdirs = ["mono", "cust_1", "cust_2"]
+    for pdir in pdirs:
+        f = partial(verify_capture_output, spec, cfg, pdir, "--cust", "custom_recomp.csv")
+        futures.append( executor.submit(f) )
+
+    done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+    winner = done.pop()
+    output = winner.result()
+    #for future in not_done:
+        #future.cancel()
+    return output
+
+def verify_multi_process(spec, cfg, verbose):
+    orig_dir = os.getcwd()
+    os.makedirs("out", exist_ok=True)
+    dest_dir = orig_dir + "/out"
+    shutil.copy(spec, dest_dir)
+    shutil.copy(cfg, dest_dir)
+    os.chdir("out")
+
+    os.makedirs("decomp", exist_ok=True)
+    shutil.copy(spec, "decomp/")
+    shutil.copy(cfg, "decomp/")
+    os.chdir("decomp")
+    components = decomp(spec, cfg)
+    os.chdir(dest_dir)
+
+    # if there's only one component then there is no need to run multiple processes
+    if len(components) <= 1:
+        os.chdir(orig_dir)
+        verify_single_process(spec, cfg, False, False, verbose)
+        return
+
+    # otherwise, build three recomp maps
+    os.makedirs("mono", exist_ok=True)
+    os.makedirs("cust_1", exist_ok=True)
+    os.makedirs("cust_2", exist_ok=True)
+    mono = ",".join(components) + "\n"
+    recomp_1 = components[0] + "\n" + ",".join(components[1:]) + "\n"
+    recomp_2 = ",".join(components[0:-1]) + "\n" + components[-1] + "\n"
+    write("mono/custom_recomp.csv", mono)
+    write("cust_1/custom_recomp.csv", recomp_1)
+    write("cust_2/custom_recomp.csv", recomp_2)
+
+    # also run the naive mapping
+    os.makedirs("naive", exist_ok=True)
+
+    output = run_multi_verif(dest_dir, spec, cfg)
+    print(output)
+    print(".")
+
+def run():
+    if (len(sys.argv) < 3 or len(sys.argv) > 5):
+        print("usage: recomp-verify.py [--cust] <file.tla> <file.cfg>")
+        return
+    if (len(sys.argv) > 3 and sys.argv[3] != "--parallel"):
+        if (len(sys.argv) == 4 and sys.argv[3] != "--cust" and sys.argv[3] != "--naive" and sys.argv[3] != "--verbose"):
+            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
+            return
+        if (len(sys.argv) == 5 and sys.argv[4] != "--cust" and sys.argv[4] != "--naive" and sys.argv[4] != "--verbose"):
+            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
+            return
+
+    spec = sys.argv[1]
+    cfg = sys.argv[2]
+    multi_process = len(sys.argv) >= 4 and sys.argv[3] == "--parallel"
+    cust = (len(sys.argv) >= 4 and sys.argv[3] == "--cust") or (len(sys.argv) >= 5 and sys.argv[4] == "--cust")
+    naive = (len(sys.argv) >= 4 and sys.argv[3] == "--naive") or (len(sys.argv) >= 5 and sys.argv[4] == "--naive")
+    verbose = (len(sys.argv) >= 4 and sys.argv[3] == "--verbose") or (len(sys.argv) >= 5 and sys.argv[4] == "--verbose")
+
+    if multi_process:
+        verify_multi_process(spec, cfg, verbose)
+    else:
+        verify_single_process(spec, cfg, cust, naive, verbose)
+
 run()
+# force exit. this will leave zombie processes running for a short period of time, which is not ideal
+os._exit(0)

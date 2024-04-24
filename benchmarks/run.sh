@@ -23,7 +23,7 @@ do
         /usr/bin/time -h -o time.txt timeout --foreground -s KILL "${max_time}" python3 "${recomp_verify}" "${n}.tla" "${n}.cfg" "${flag}"
     fi
 
-    # kill any zombine processes
+    # kill any zombie processes
     ps x | grep recomp-verify | grep -v grep | awk '{print $1}' | xargs kill -9
     sleep 1
 
