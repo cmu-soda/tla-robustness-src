@@ -82,6 +82,10 @@ def verify_capture_output(spec, cfg, pdir, *args):
     for arg in args:
         cmd_args.append(arg)
 
+    # uses TLC to run the one-component case
+    if pdir == "mono":
+        cmd_args = ["java", "-Xmx7g", "-jar", tlc, "-deadlock", "-workers", "1", "-config", cfg, spec]
+
     #naive_log = open("out.log","w")
     #process = subprocess.Popen(cmd_args, stdout=naive_log.fileno())
     #process.wait()
@@ -132,8 +136,12 @@ def verify_multi_process(spec, cfg, verbose):
 
     # if there's only one component then there is no need to run multiple processes
     if len(components) <= 1:
-        os.chdir(orig_dir)
-        verify_single_process(spec, cfg, False, False, verbose)
+        #os.chdir(orig_dir)
+        #verify_single_process(spec, cfg, False, False, verbose)
+        os.makedirs("mono", exist_ok=True)
+        output = verify_capture_output(spec, cfg, "mono")
+        print(output)
+        print(".")
         return
 
     # otherwise, build three recomp maps
