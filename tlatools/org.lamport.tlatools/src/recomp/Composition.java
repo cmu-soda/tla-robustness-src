@@ -266,6 +266,7 @@ public class Composition {
     	// components.
     	Set<Utils.Pair<String,String>> componentOrder = partialOrder
     			.stream()
+    			.filter(e -> varToComponentMap.containsKey(e.first) && varToComponentMap.containsKey(e.second))
     			.map(e -> new Utils.Pair<String,String>(varToComponentMap.get(e.first), varToComponentMap.get(e.second)))
     			.collect(Collectors.toSet());
     	/*for (final Utils.Pair<String,String> e : componentOrder) {
