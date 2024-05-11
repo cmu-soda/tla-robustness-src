@@ -173,59 +173,28 @@ public class Composition {
 		}
 		
     	final String noInvsCfg = "no_invs.cfg";
-    	final List<Set<String>> stateVars = rawComponents
-    			.stream()
-    			.map(c -> TLC.stateVarsInSpec(c, noInvsCfg))
-    			.collect(Collectors.toList());
+    	final Map<String, Set<String>> stateVars = new HashMap<>();
+    	for (final String c : rawComponents) {
+    		stateVars.put(c, TLC.stateVarsInSpec(c, noInvsCfg));
+    	}
     	
     	// collect the state vars in the safety property
     	TLC tlc = new TLC();
     	tlc.initialize(tla, cfg);
-    	final Set<String> invariantVars = tlc.stateVariablesUsedInInvariants();
-    	final Set<String> propertyVars = tlc.stateVarsUsedInSameExprs(invariantVars);
     	
-    	// sanity check--the first component should contain the property vars
-    	Utils.assertTrue(propertyVars.equals(stateVars.get(0)), "First component should contain all property vars!");
+    	// STEP 1: create data flow partial order
+    	Set<Utils.Pair<String,String>> dfPartialOrder = dataFlowPartialOrder(rawComponents);
     	
-    	
-    	// STEP 1: assign a partial order to the state vars based the data flow of the vars
-    	Set<Utils.Pair<String,String>> partialOrder = new HashSet<>();
-    	
-    	// all vars from the same component are equal to each other in the partial order
-    	for (final Set<String> cmptVars : stateVars) {
-    		for (final String v1 : cmptVars) {
-        		for (final String v2 : cmptVars) {
-            		partialOrder.add(new Utils.Pair<>(v1, v2));
-        		}
+    	Set<Utils.Pair<String,String>> varsPartialOrder = new HashSet<>();
+    	for (final Utils.Pair<String,String> po : dfPartialOrder) {
+    		final String c1 = po.first;
+    		final String c2 = po.second;
+    		for (final String c1v : stateVars.get(c1)) {
+    			for (final String c2v : stateVars.get(c2)) {
+    				varsPartialOrder.add(new Utils.Pair<>(c1v, c2v));
+    			}
     		}
     	}
-    	
-    	// add "data flow" relations to the partial order
-    	Set<String> visitedVars = new HashSet<>();
-    	List<Set<String>> queue = new LinkedList<>();
-    	queue.add(propertyVars);
-    	while (!queue.isEmpty()) {
-    		final Set<String> currentVars = queue.remove(0);
-        	visitedVars.addAll(currentVars);
-    		
-        	for (final String v : currentVars) {
-        		// find all variables that occur in the same actions as v
-        		final Set<String> flowToVars = tlc.stateVarsInSameAction(Set.of(v));
-        		flowToVars.removeAll(visitedVars);
-        		
-        		// add flowToVars to partial order
-        		for (final String ftv : flowToVars) {
-        			partialOrder.add(new Utils.Pair<>(v, ftv));
-        		}
-        		
-        		// prepare for next iteration
-        		queue.add(flowToVars);
-        	}
-    	}
-    	
-    	// add transitive closure relations to the partial order
-    	Utils.transitiveClosure(partialOrder);
-    	
     	
     	// STEP 2: break ties (assign a total order to the state vars) based on which vars occur more (syntactically)
     	// in the monolithic spec
@@ -237,14 +206,14 @@ public class Composition {
 				if (!v1.equals(v2)) {
 					final Utils.Pair<String,String> order1 = new Utils.Pair<>(v1,v2);
 					final Utils.Pair<String,String> order2 = new Utils.Pair<>(v2,v1);
-					if (!partialOrder.contains(order1) && !partialOrder.contains(order2)) {
+					if (!varsPartialOrder.contains(order1) && !varsPartialOrder.contains(order2)) {
 						// found incomparable elements
 						// current tie breaker strategy: choose the variable that occurs more (syntactically) to be "larger"
 						final int numOccurrencesV1 = tlc.numOccurrencesOutsideOfUNCHANGED(v1);
 						final int numOccurrencesV2 = tlc.numOccurrencesOutsideOfUNCHANGED(v2);
 						final Utils.Pair<String,String> tieBreaker = (numOccurrencesV1 < numOccurrencesV2) ? order1 : order2;
-						partialOrder.add(tieBreaker);
-				    	Utils.transitiveClosure(partialOrder);
+						varsPartialOrder.add(tieBreaker);
+				    	Utils.transitiveClosure(varsPartialOrder);
 					}
 				}
 			}
@@ -255,24 +224,19 @@ public class Composition {
     	
     	// build a map from state var -> component
     	Map<String,String> varToComponentMap = new HashMap<>();
-    	for (int i = 0; i < stateVars.size(); ++i) {
-    		final String component = rawComponents.get(i);
-    		for (final String var : stateVars.get(i)) {
+    	for (final String component : rawComponents) {
+    		for (final String var : stateVars.get(component)) {
     			varToComponentMap.put(var, component);
     		}
     	}
     	
     	// replace state vars in the PO with the component they belong to. this will give us a total ordering over the
     	// components.
-    	Set<Utils.Pair<String,String>> componentOrder = partialOrder
+    	Set<Utils.Pair<String,String>> componentOrder = varsPartialOrder
     			.stream()
     			.filter(e -> varToComponentMap.containsKey(e.first) && varToComponentMap.containsKey(e.second))
     			.map(e -> new Utils.Pair<String,String>(varToComponentMap.get(e.first), varToComponentMap.get(e.second)))
     			.collect(Collectors.toSet());
-    	/*for (final Utils.Pair<String,String> e : componentOrder) {
-    		System.err.println("(" + e.first + ", " + e.second + ")");
-    	}
-    	System.err.println();*/
     	
     	// remove the largest element from <componentOrder> until it is empty
     	List<String> components = new ArrayList<>();
@@ -286,6 +250,85 @@ public class Composition {
     	}
     	
 		return components;
+	}
+	
+	/**
+	 * Creates the data flow partial order given a list of components.
+	 * @param components
+	 * @return
+	 */
+	private static Set<Utils.Pair<String,String>> dataFlowPartialOrder(final List<String> components) {
+		Utils.assertTrue(!components.isEmpty(), "No components!");
+    	final String noInvsCfg = "no_invs.cfg";
+    	
+    	// C_1
+    	final String c1 = components.get(0);
+    	
+    	// define X_0, X_1, ..., X_{n-1}
+    	List<Set<String>> x = new ArrayList<>();
+    	List<Set<String>> xActs = new ArrayList<>(); // \alpha X_i
+    	x.add(Utils.setOf(c1)); // X_0
+    	xActs.add(TLC.actionsInSpec(c1, noInvsCfg)); // \alpha X_0
+    	for (int i = 1; i < components.size(); ++i) {
+    		// X_{i+1}
+    		final int ii = i;
+    		final Set<String> xip1 = components
+    				.stream()
+    				.filter(c -> !Utils.intersection(TLC.actionsInSpec(c,noInvsCfg), xActs.get(ii-1)).isEmpty())
+    				.collect(Collectors.toSet());
+    		final Set<String> xip1Acts = xip1
+    				.stream()
+    				.map(c -> TLC.actionsInSpec(c, noInvsCfg))
+    				.reduce((Set<String>) new HashSet<String>(),
+							(acc, s) -> Utils.union(acc, s),
+							(s, t) -> Utils.union(s, t));
+    		x.add(xip1);
+    		xActs.add(xip1Acts);
+    	}
+    	
+    	// define F_0, F_1, ..., F_{n-1}
+    	List<Set<String>> f = new ArrayList<>();
+    	f.add(x.get(0)); // F_0
+    	for (int i = 1; i < components.size(); ++i) {
+    		// F_{i+1}
+    		f.add(Utils.setMinus(x.get(i), x.get(i-1)));
+    	}
+    	
+    	// define R_0, R_1, ..., R_{n-1}
+    	List<Set<Utils.Pair<String,String>>> r = new ArrayList<>();
+    	r.add(new HashSet<>()); // R_0
+    	for (int i = 1; i < components.size(); ++i) {
+    		// R_{i+1}
+    		Set<Utils.Pair<String,String>> rip1 = new HashSet<>();
+    		final Set<String> fi = f.get(i-1);
+    		final Set<String> fip1 = f.get(i);
+    		for (final String a : fi) {
+    			for (final String b : fip1) {
+    	    		final Set<String> aActs = TLC.actionsInSpec(a, noInvsCfg);
+    	    		final Set<String> bActs = TLC.actionsInSpec(b, noInvsCfg);
+    	    		if (!Utils.intersection(aActs, bActs).isEmpty()) {
+    	    			rip1.add(new Utils.Pair<>(a,b));
+    	    		}
+    			}
+    		}
+    		r.add(rip1);
+    	}
+    	
+    	// define R
+    	Set<Utils.Pair<String,String>> rel = r
+    			.stream()
+				.reduce((Set<Utils.Pair<String,String>>) new HashSet<Utils.Pair<String,String>>(),
+						(acc, s) -> Utils.union(acc, s),
+						(s, t) -> Utils.union(s, t));
+    	// add reflexivity to R
+    	for (int i = 0; i < components.size(); ++i) {
+    		final String c = components.get(i);
+    		rel.add(new Utils.Pair<String,String>(c,c));
+    	}
+    	
+    	// turn rel into a partial order by including the transitive closure
+    	Utils.transitiveClosure(rel);
+    	return rel;
 	}
 
 	/**
