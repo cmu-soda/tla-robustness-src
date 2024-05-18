@@ -164,14 +164,14 @@ def verify_multi_process(spec, cfg, verbose):
 
 def run():
     if (len(sys.argv) < 3 or len(sys.argv) > 5):
-        print("usage: recomp-verify.py [--cust] <file.tla> <file.cfg>")
+        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel] [--verbose]")
         return
     if (len(sys.argv) > 3 and sys.argv[3] != "--parallel"):
         if (len(sys.argv) == 4 and sys.argv[3] != "--cust" and sys.argv[3] != "--naive" and sys.argv[3] != "--verbose"):
-            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
+            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel] [--verbose]")
             return
         if (len(sys.argv) == 5 and sys.argv[4] != "--cust" and sys.argv[4] != "--naive" and sys.argv[4] != "--verbose"):
-            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive] [--verbose]")
+            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel] [--verbose]")
             return
 
     spec = sys.argv[1]
