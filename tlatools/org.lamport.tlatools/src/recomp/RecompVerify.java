@@ -51,22 +51,22 @@ public class RecompVerify {
 	public static void recompVerify(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose) {
     	PerfTimer timer = new PerfTimer();
     	SymbolTable.init();
-    	
+
     	// write a config without any invariants / properties
     	final String noInvsCfg = "no_invs.cfg";
     	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
-    	
+
     	// decompose the spec into as many components as possible
-    	final List<String> rawComponents = Decomposition.decompAll(tla, cfg);
-    	final List<String> components = Composition.symbolicCompose(tla, cfg, recompType, recompFile, rawComponents);
-    	Utils.assertTrue(rawComponents.size() > 0, "Decomposition returned no components");
+		final List<String> rawComponents = Decomposition.decompAll(tla, cfg);
+		final List<String> components = Composition.symbolicCompose(tla, cfg, recompType, recompFile, rawComponents);
+		Utils.assertTrue(rawComponents.size() > 0, "Decomposition returned no components");
     	Utils.assertTrue(components.size() > 0, "Symbolic composition returned no components");
     	System.out.println("n: " + rawComponents.size());
     	System.out.println("m: " + (components.size() - 1));
-    	
+
     	// model check the first component
     	final String firstComp = components.get(0);
-		Utils.printVerbose(verbose, "");;
+		Utils.printVerbose(verbose, "");
 		Utils.printVerbose(verbose, "Component 1" + ": " + firstComp);
     	TLC tlcFirstComp = new TLC();
     	timer.reset();
@@ -111,11 +111,11 @@ public class RecompVerify {
     		//FSPWriter.INSTANCE.write(System.out, ltsProp);
 			return;
     	}
-    	
+
     	// at this point, ltsProp represents the interface requirement for the 1st component.
     	// therefore, there is no need to look at the 1st component in the following loop.
-    	
-    	for (int i = 1; i < components.size(); ++i) {
+
+		for (int i = 1; i < components.size(); ++i) {
     		final int compNum = i + 1;
     		final String comp = components.get(i);
     		Utils.printVerbose(verbose, "");
@@ -130,7 +130,7 @@ public class RecompVerify {
         	// turn the next component into an LTS (user of the interface provided by ltsProp)
         	timer.reset();
         	LTS<Integer, String> ltsComp = tlcComp.getLTSBuilder().toIncompleteDetAutWithoutAnErrorState();
-        	Utils.printVerbose(verbose, "LTS gen: " + timer.timeElapsed() + "ms");
+			Utils.printVerbose(verbose, "LTS gen: " + timer.timeElapsed() + "ms");
         	Utils.printVerbose(verbose, "# unique states: " + (ltsComp.size()-1) + " states");
         	totalSumOfStatesChecked += ltsComp.size() - 1;
         	//System.out.println();
