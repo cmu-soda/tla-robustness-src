@@ -58,6 +58,7 @@ public class RecompVerify {
 
     	// decompose the spec into as many components as possible
 		final List<String> rawComponents = Decomposition.decompAll(tla, cfg);
+
 		final List<String> components = Composition.symbolicCompose(tla, cfg, recompType, recompFile, rawComponents);
 		Utils.assertTrue(rawComponents.size() > 0, "Decomposition returned no components");
     	Utils.assertTrue(components.size() > 0, "Symbolic composition returned no components");
@@ -191,7 +192,55 @@ public class RecompVerify {
     	// it should produce an error trace
     	System.exit(99);
     }
-	
+
+
+	private static void runRecompMap(int compNum, String comp, String noInvsCfg, AlphabetMembershipTester alphabetTester, LTS<Integer, String> ltsProp, boolean verbose) {
+		PerfTimer timer = new PerfTimer();
+		SymbolTable.init();
+
+		Utils.printVerbose(verbose, "");
+		Utils.printVerbose(verbose, "Component " + compNum + ": " + comp);
+
+		TLC tlcComp = new TLC();
+		timer.reset();
+		tlcComp.modelCheck(comp, noInvsCfg, alphabetTester);
+		Utils.printVerbose(verbose, "State space gen: " + timer.timeElapsed() + "ms");
+		Utils.assertNotNull(tlcComp.getLTSBuilder(), "Error generating state space for component " + compNum + "!");
+
+		// Turn the next component into an LTS (user of the interface provided by ltsProp)
+		timer.reset();
+		LTS<Integer, String> ltsComp = tlcComp.getLTSBuilder().toIncompleteDetAutWithoutAnErrorState();
+		Utils.printVerbose(verbose, "LTS gen: " + timer.timeElapsed() + "ms");
+		Utils.printVerbose(verbose, "# unique states: " + (ltsComp.size()-1) + " states");
+
+		// Minimize the LTS for the component
+		timer.reset();
+		ltsComp = AutomataLibUtils.minimizeLTS(ltsComp);
+		Utils.printVerbose(verbose, "minimization: " + timer.timeElapsed() + "ms");
+		Utils.printVerbose(verbose, "# unique states post-minimization: " + (ltsComp.size()-1) + " states");
+
+		// Create new safety property (interface requirement for all components seen so far)
+		timer.reset();
+		ltsProp = ParallelComposition.INSTANCE.parallel(ltsComp, ltsProp);
+		Utils.printVerbose(verbose, "New property gen (|| composition): " + timer.timeElapsed() + "ms");
+
+		// Update the alphabet
+		alphabetTester.update(tlcComp.actionsInSpec(), ltsProp);
+
+		// Check the new safety property
+		if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+			Utils.printVerbose(verbose, "");
+			System.out.println("k: " + (compNum - 1));
+			System.out.println("Property satisfied!");
+		}
+		if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
+			Utils.printVerbose(verbose, "");
+			System.out.println("k: " + (compNum - 1));
+			System.out.println("Property may be violated.");
+		}
+	}
+
+
 	private static void writeErrorTraceFile(final String tla, final String cfg, final LTS<Integer, String> ltsProp) {
 		final Word<String> trace = SafetyUtils.INSTANCE.findErrorTrace(ltsProp);
 		/*System.out.println("Error trace:");
