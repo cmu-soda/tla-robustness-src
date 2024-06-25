@@ -94,7 +94,7 @@ public class RecompVerify {
     	
     	// initialize the alphabet
     	AlphabetMembershipTester alphabetTester = new AlphabetMembershipTester(tlcFirstComp.actionsInSpec(), ltsProp);
-    	
+
     	if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
     		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
     		Utils.printVerbose(verbose, "");
@@ -194,50 +194,145 @@ public class RecompVerify {
     }
 
 
-	private static void runRecompMap(int compNum, String comp, String noInvsCfg, AlphabetMembershipTester alphabetTester, LTS<Integer, String> ltsProp, boolean verbose) {
+	private static void runRecompMap(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose, final List<String> rawComponents) {
 		PerfTimer timer = new PerfTimer();
 		SymbolTable.init();
 
+		final String noInvsCfg = "no_invs.cfg";
+
+		// decompose the spec into as many components as possible
+		final List<String> components = Composition.symbolicCompose(tla, cfg, recompType, recompFile, rawComponents);
+		Utils.assertTrue(rawComponents.size() > 0, "Decomposition returned no components");
+		Utils.assertTrue(components.size() > 0, "Symbolic composition returned no components");
+		System.out.println("n: " + rawComponents.size());
+		System.out.println("m: " + (components.size() - 1));
+
+		// model check the first component
+		final String firstComp = components.get(0);
 		Utils.printVerbose(verbose, "");
-		Utils.printVerbose(verbose, "Component " + compNum + ": " + comp);
-
-		TLC tlcComp = new TLC();
+		Utils.printVerbose(verbose, "Component 1" + ": " + firstComp);
+		TLC tlcFirstComp = new TLC();
 		timer.reset();
-		tlcComp.modelCheck(comp, noInvsCfg, alphabetTester);
+		tlcFirstComp.modelCheckOnlyGoodStates(firstComp, cfg); // TODO there's really no reason to distinguish between the 2 methods
 		Utils.printVerbose(verbose, "State space gen: " + timer.timeElapsed() + "ms");
-		Utils.assertNotNull(tlcComp.getLTSBuilder(), "Error generating state space for component " + compNum + "!");
+		Utils.assertNotNull(tlcFirstComp.getLTSBuilder(), "Error generating state space for the first component!");
 
-		// Turn the next component into an LTS (user of the interface provided by ltsProp)
+		// turn the first component into a safety property (interface requirement)
 		timer.reset();
-		LTS<Integer, String> ltsComp = tlcComp.getLTSBuilder().toIncompleteDetAutWithoutAnErrorState();
+		LTS<Integer, String> ltsProp = tlcFirstComp.getLTSBuilder().toIncompleteDetAutIncludingAnErrorState();
 		Utils.printVerbose(verbose, "LTS gen: " + timer.timeElapsed() + "ms");
-		Utils.printVerbose(verbose, "# unique states: " + (ltsComp.size()-1) + " states");
+		Utils.printVerbose(verbose, "# unique states: " + (ltsProp.size()-1) + " states");
+		int totalSumOfStatesChecked = ltsProp.size() - 1;
+		int largestProductOfStatesChecked = ltsProp.size() - 1;
+		//System.out.println();
+		//FSPWriter.INSTANCE.write(System.out, ltsProp);
+		//System.out.println();
 
-		// Minimize the LTS for the component
+		// minimize the LTS
 		timer.reset();
-		ltsComp = AutomataLibUtils.minimizeLTS(ltsComp);
+		ltsProp = AutomataLibUtils.minimizeLTS(ltsProp);
 		Utils.printVerbose(verbose, "minimization: " + timer.timeElapsed() + "ms");
-		Utils.printVerbose(verbose, "# unique states post-minimization: " + (ltsComp.size()-1) + " states");
+		Utils.printVerbose(verbose, "# unique states post-minimization: " + (ltsProp.size()-1) + " states");
 
-		// Create new safety property (interface requirement for all components seen so far)
-		timer.reset();
-		ltsProp = ParallelComposition.INSTANCE.parallel(ltsComp, ltsProp);
-		Utils.printVerbose(verbose, "New property gen (|| composition): " + timer.timeElapsed() + "ms");
+		// initialize the alphabet
+		AlphabetMembershipTester alphabetTester = new AlphabetMembershipTester(tlcFirstComp.actionsInSpec(), ltsProp);
 
-		// Update the alphabet
-		alphabetTester.update(tlcComp.actionsInSpec(), ltsProp);
-
-		// Check the new safety property
 		if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+			final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
 			Utils.printVerbose(verbose, "");
-			System.out.println("k: " + (compNum - 1));
+			System.out.println("k: " + 0);
+			System.out.println("Total # states checked: " + totalNumStatesChecked);
 			System.out.println("Property satisfied!");
+			return;
 		}
 		if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
+			final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
 			Utils.printVerbose(verbose, "");
-			System.out.println("k: " + (compNum - 1));
+			System.out.println("k: " + 0);
+			System.out.println("Total # states checked: " + totalNumStatesChecked);
 			System.out.println("Property may be violated.");
+			//FSPWriter.INSTANCE.write(System.out, ltsProp);
+			return;
 		}
+
+		// at this point, ltsProp represents the interface requirement for the 1st component.
+		// therefore, there is no need to look at the 1st component in the following loop.
+
+		for (int i = 1; i < components.size(); ++i) {
+			final int compNum = i + 1;
+			final String comp = components.get(i);
+			Utils.printVerbose(verbose, "");
+			Utils.printVerbose(verbose, "Component " + compNum + ": " + comp);
+
+			TLC tlcComp = new TLC();
+			timer.reset();
+			tlcComp.modelCheck(comp, noInvsCfg, alphabetTester);
+			Utils.printVerbose(verbose, "State space gen: " + timer.timeElapsed() + "ms");
+			Utils.assertNotNull(tlcComp.getLTSBuilder(), "Error generating state space for component " + compNum + "!");
+
+			// turn the next component into an LTS (user of the interface provided by ltsProp)
+			timer.reset();
+			LTS<Integer, String> ltsComp = tlcComp.getLTSBuilder().toIncompleteDetAutWithoutAnErrorState();
+			Utils.printVerbose(verbose, "LTS gen: " + timer.timeElapsed() + "ms");
+			Utils.printVerbose(verbose, "# unique states: " + (ltsComp.size()-1) + " states");
+			totalSumOfStatesChecked += ltsComp.size() - 1;
+			//System.out.println();
+			//FSPWriter.INSTANCE.write(System.out, ltsComp);
+			//System.out.println();
+
+			// minimize the LTS for the component
+			timer.reset();
+			ltsComp = AutomataLibUtils.minimizeLTS(ltsComp);
+			Utils.printVerbose(verbose, "minimization: " + timer.timeElapsed() + "ms");
+			Utils.printVerbose(verbose, "# unique states post-minimization: " + (ltsComp.size()-1) + " states");
+			largestProductOfStatesChecked = Math.max(largestProductOfStatesChecked, ltsProp.size()-1);
+
+			// remove any actions that are now internal to ltsProp
+			// TODO this technically is an abstraction method because later components may have the action
+			//Set<String> ltsPropAlphabet = new HashSet<>(ltsProp.getInputAlphabet());
+			//ltsPropAlphabet.removeAll(ltsComp.getInputAlphabet());
+			//ltsProp = HideUtils.INSTANCE.hideManually(ltsProp, ltsPropAlphabet);
+
+			// create new safety property (interface requirement for all components seen so far)
+			timer.reset();
+			ltsProp = ParallelComposition.INSTANCE.parallel(ltsComp, ltsProp);
+			Utils.printVerbose(verbose, "New property gen (|| composition): " + timer.timeElapsed() + "ms");
+
+			// collect the alphabet
+			alphabetTester.update(tlcComp.actionsInSpec(), ltsProp);
+
+			// if the new safety property is TRUE or FALSE then model checking is done
+			if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
+				final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
+				Utils.printVerbose(verbose, "");
+				System.out.println("k: " + i);
+				System.out.println("Total # states checked: " + totalNumStatesChecked);
+				System.out.println("Property satisfied!");
+				return;
+			}
+			if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
+				final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
+				Utils.printVerbose(verbose, "");
+				System.out.println("k: " + i);
+				System.out.println("Total # states checked: " + totalNumStatesChecked);
+				System.out.println("Property may be violated.");
+				//FSPWriter.INSTANCE.write(System.out, ltsProp);
+				return;
+			}
+		}
+		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
+		Utils.printVerbose(verbose, "");
+		System.out.println("k: " + (components.size() - 1));
+		System.out.println("Total # states checked: " + totalNumStatesChecked);
+		System.out.println("Property may be violated.");
+
+		// encode the sequence of actions that leads to an error in a new TLA+ file
+		// TODO write error trace for early termination
+		writeErrorTraceFile(tla, cfg, ltsProp);
+
+		// not unix convention, but we use this to signal to the wrapper script that
+		// it should produce an error trace
+		System.exit(99);
 	}
 
 
