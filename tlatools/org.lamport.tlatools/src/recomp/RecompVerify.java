@@ -46,7 +46,29 @@ import tlc2.Utils.Pair;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.impl.FastTool;
 
-public class RecompVerify {
+public class RecompVerify implements Runnable {
+
+	public static boolean globalIsDone = false;
+
+	@ Override
+	public void run() {
+		try {
+			Thread.sleep(100);
+		}
+		catch (InterruptedException e) {
+			System.out.println("Thread interrupted");
+		}
+		if (isThreadDone()){
+			System.out.println("Program executed within: " + "{Some time}" + " ms.");
+		}
+		return ;
+	}
+
+	synchronized public boolean isThreadDone() {
+		boolean isDone = globalIsDone;
+		globalIsDone = true;
+		return isDone;
+	}
 
 	public static void recompVerify(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose) {
     	PerfTimer timer = new PerfTimer();
@@ -109,17 +131,14 @@ public class RecompVerify {
 
 		// initialize the alphabet
 		AlphabetMembershipTester alphabetTester = new AlphabetMembershipTester(tlcFirstComp.actionsInSpec(), ltsProp);
-
-
-
+		
 		if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
 			final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
 			printMsg = Utils.addPrintVerbose(printMsg, verbose, "");
 			printMsg = Utils.addPrint(printMsg, ("k: " + 0));
 			printMsg = Utils.addPrint(printMsg, ("Total # states checked: " + totalNumStatesChecked));
-
-			printMsg =Utils.addPrint(printMsg, ("Property satisfied!"));
-
+			printMsg = Utils.addPrint(printMsg, ("Property satisfied!"));
+			return;
 		}
 
 		if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
