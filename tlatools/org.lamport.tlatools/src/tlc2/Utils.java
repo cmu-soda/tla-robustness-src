@@ -356,7 +356,20 @@ public class Utils {
     		System.out.println(msg);
     	}
     }
-    
+
+	public static String addPrintVerbose(String lastOutput, boolean verbose, final String msg) {
+		if (verbose) {
+			lastOutput += msg + "\n";
+		}
+		return lastOutput;
+	}
+
+	public static String addPrint(String lastOutput, final String msg) {
+		lastOutput += msg + "\n";
+		return lastOutput;
+	}
+
+
     // thanks https://stackoverflow.com/questions/2406121/how-do-i-escape-a-string-in-java
     public static String stringEscape(String s){
 	  return s.replace("\\", "\\\\")
