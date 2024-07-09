@@ -50,43 +50,62 @@ public class RecompVerify implements Runnable {
 
 	public static boolean globalIsDone = false;
 
+	private String tla;
+	private String cfg;
+	private String recompType;
+	private String recompFile;
+	private boolean verbose;
+
+	public RecompVerify(String tla, String cfg, String recompType, String recompFile, boolean verbose) {
+		this.tla = tla;
+		this.cfg = cfg;
+		this.recompType = recompType;
+		this.recompFile = recompFile;
+		this.verbose = verbose;
+	}
+
 	@ Override
 	public void run() {
 		try {
-			Thread.sleep(100);
+			Thread.sleep(0);
+			// decompose the spec into as many components as possible
+			List<String> rawComponents = Decomposition.decompAll(tla, cfg);
+			runRecompMap(tla, cfg, recompType, recompFile, verbose, rawComponents);
 		}
 		catch (InterruptedException e) {
 			System.out.println("Thread interrupted");
 		}
-		if (isThreadDone()){
-			System.out.println("Program executed within: " + "{Some time}" + " ms.");
-		}
-		return ;
 	}
 
-	synchronized public boolean isThreadDone() {
+	synchronized static public boolean isThreadDone() {
 		boolean isDone = globalIsDone;
 		globalIsDone = true;
 		return isDone;
 	}
 
+
 	public static void recompVerify(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose) {
-    	PerfTimer timer = new PerfTimer();
-    	SymbolTable.init();
+//		ArrayList<String> printMsgs = new ArrayList<>();
+//		ArrayList<Thread> threads = new ArrayList<>();
 
-    	// write a config without any invariants / properties
-    	final String noInvsCfg = "no_invs.cfg";
-    	Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
+		// write a config without any invariants / properties
+		final String noInvsCfg = "no_invs.cfg";
+		Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
 
+		RecompVerify recompVerifyInstance = new RecompVerify(tla, cfg, recompType, recompFile, verbose);
+		Thread thread = new Thread(recompVerifyInstance);
+		thread.start();
 
-    	// decompose the spec into as many components as possible
-		final List<String> rawComponents = Decomposition.decompAll(tla, cfg);
-		runRecompMap(tla, cfg, recompType,  recompFile, verbose, rawComponents);
+		try {
+			thread.join();
+		} catch (InterruptedException e) {
+			System.out.println("Thread interrupted while waiting on something.");
+		}
     }
 
 
 	private static void runRecompMap(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose, final List<String> rawComponents) {
-		String printMsg =  "";
+		String printMsg = "";
 
 		PerfTimer timer = new PerfTimer();
 		SymbolTable.init();
@@ -102,7 +121,6 @@ public class RecompVerify implements Runnable {
 
 		// model check the first component
 		final String firstComp = components.get(0);
-
 
 		printMsg = Utils.addPrintVerbose(printMsg, verbose, "");
 		printMsg = Utils.addPrintVerbose(printMsg, verbose, "Component 1" + ": " + firstComp);
@@ -131,13 +149,14 @@ public class RecompVerify implements Runnable {
 
 		// initialize the alphabet
 		AlphabetMembershipTester alphabetTester = new AlphabetMembershipTester(tlcFirstComp.actionsInSpec(), ltsProp);
-		
+
 		if (SafetyUtils.INSTANCE.ltsIsSafe(ltsProp)) {
 			final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
 			printMsg = Utils.addPrintVerbose(printMsg, verbose, "");
 			printMsg = Utils.addPrint(printMsg, ("k: " + 0));
 			printMsg = Utils.addPrint(printMsg, ("Total # states checked: " + totalNumStatesChecked));
 			printMsg = Utils.addPrint(printMsg, ("Property satisfied!"));
+			if (!isThreadDone()) System.out.print(printMsg);
 			return;
 		}
 
@@ -148,7 +167,7 @@ public class RecompVerify implements Runnable {
 			printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
 			printMsg = Utils.addPrint(printMsg, "Property may be violated.");
 			//FSPWriter.INSTANCE.write(System.out, ltsProp);
-			System.out.print(printMsg);
+			if (!isThreadDone()) System.out.print(printMsg);
 			return;
 		}
 
@@ -205,7 +224,7 @@ public class RecompVerify implements Runnable {
 				printMsg = Utils.addPrint(printMsg, "k: " + i);
 				printMsg = Utils.addPrint(printMsg,"Total # states checked: " + totalNumStatesChecked);
 				printMsg = Utils.addPrint(printMsg,"Property satisfied!");
-				System.out.print(printMsg);
+				if (!isThreadDone()) System.out.print(printMsg);
 				return;
 			}
 			if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
@@ -215,19 +234,19 @@ public class RecompVerify implements Runnable {
 				printMsg = Utils.addPrint(printMsg,"Total # states checked: " + totalNumStatesChecked);
 				printMsg = Utils.addPrint(printMsg,"Property may be violated.");
 				//FSPWriter.INSTANCE.write(System.out, ltsProp);
-				System.out.print(printMsg);
+				if (!isThreadDone()) System.out.print(printMsg);
 				return;
 			}
 		}
+
 		final int totalNumStatesChecked = Math.max(totalSumOfStatesChecked, largestProductOfStatesChecked);
-		Utils.printVerbose(verbose, "");
+		printMsg = Utils.addPrintVerbose(printMsg, verbose, "");
 		printMsg = Utils.addPrint(printMsg,"k: " + (components.size() - 1));
 		printMsg = Utils.addPrint(printMsg,"Total # states checked: " + totalNumStatesChecked);
 		printMsg = Utils.addPrint(printMsg,"Property may be violated.");
 
-
 		//Output everything
-		System.out.print(printMsg);
+		if (!isThreadDone()) System.out.print(printMsg);
 		
 		// encode the sequence of actions that leads to an error in a new TLA+ file	// encode the sequence of actions that leads to an error in a new TLA+ file
 		// TODO write error trace for early termination	// TODO write error trace for early termination
@@ -237,7 +256,6 @@ public class RecompVerify implements Runnable {
 		// it should produce an error trace	// it should produce an error trace
 		System.exit(99);	System.exit(99);
 	}
-
 
 	private static void writeErrorTraceFile(final String tla, final String cfg, final LTS<Integer, String> ltsProp) {
 		final Word<String> trace = SafetyUtils.INSTANCE.findErrorTrace(ltsProp);
