@@ -25,7 +25,7 @@ public class RVStrategy implements Runnable {
         return isDone;
     }
 
-    public void runRVStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose) throws InterruptedException {
+    public static void runRVStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose) throws InterruptedException {
 //		ArrayList<Thread> threads = new ArrayList<>();
         RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose);
         Thread thread = new Thread(sampleStrategy);
