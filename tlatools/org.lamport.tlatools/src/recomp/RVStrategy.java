@@ -36,7 +36,7 @@ public class RVStrategy implements Runnable {
         } catch (InterruptedException e) {
             System.out.println("Thread interrupted while waiting on something.");
         }
-
+        System.exit(99);
     }
 
     @ Override

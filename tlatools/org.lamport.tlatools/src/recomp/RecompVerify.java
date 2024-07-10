@@ -58,6 +58,8 @@ public class RecompVerify {
 		} catch (InterruptedException e) {
 			throw new RuntimeException(e);
 		}
+
+		System.exit(99);
 	}
 
 	public static void runRecompMap(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose, final List<String> rawComponents) {
@@ -209,7 +211,6 @@ public class RecompVerify {
 
 		// not unix convention, but we use this to signal to the wrapper script that	// not unix convention, but we use this to signal to the wrapper script that
 		// it should produce an error trace	// it should produce an error trace
-		System.exit(99);
 	}
 
 	private static void writeErrorTraceFile(final String tla, final String cfg, final LTS<Integer, String> ltsProp) {
