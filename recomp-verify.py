@@ -116,7 +116,7 @@ def run_multi_verif(dest_dir, spec, cfg):
     winner = done.pop()
     output = winner.result()
     #for future in not_done:
-        #future.cancel()
+    #future.cancel()
     return output
 
 def verify_multi_process(spec, cfg, verbose):
@@ -162,20 +162,26 @@ def verify_multi_process(spec, cfg, verbose):
     print(output)
     print(".")
 
+def recomp_verify_paralleljava(spec, cfg):
+    # Run the Java recomp-verify tool with the provided spec and cfg
+    cmd_args = ["java", "-jar", tool, spec, cfg]
+    subprocess.run(cmd_args)
+
 def run():
     if (len(sys.argv) < 3 or len(sys.argv) > 5):
-        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel] [--verbose]")
+        print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel|--parallel_java] [--verbose]")
         return
-    if (len(sys.argv) > 3 and sys.argv[3] != "--parallel"):
+    if (len(sys.argv) > 3 and sys.argv[3] != "--parallel" and sys.argv[3] != "--parallel_java"):
         if (len(sys.argv) == 4 and sys.argv[3] != "--cust" and sys.argv[3] != "--naive" and sys.argv[3] != "--verbose"):
-            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel] [--verbose]")
+            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel|--parallel_java] [--verbose]")
             return
         if (len(sys.argv) == 5 and sys.argv[4] != "--cust" and sys.argv[4] != "--naive" and sys.argv[4] != "--verbose"):
-            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel] [--verbose]")
+            print("usage: recomp-verify.py <file.tla> <file.cfg> [--cust|--naive|--parallel|--parallel_java] [--verbose]")
             return
 
     spec = sys.argv[1]
     cfg = sys.argv[2]
+    multi_process_java = len(sys.argv) >= 4 and sys.argv[3] == "--parallel_java"
     multi_process = len(sys.argv) >= 4 and sys.argv[3] == "--parallel"
     cust = (len(sys.argv) >= 4 and sys.argv[3] == "--cust") or (len(sys.argv) >= 5 and sys.argv[4] == "--cust")
     naive = (len(sys.argv) >= 4 and sys.argv[3] == "--naive") or (len(sys.argv) >= 5 and sys.argv[4] == "--naive")
@@ -183,6 +189,8 @@ def run():
 
     if multi_process:
         verify_multi_process(spec, cfg, verbose)
+    elif multi_process_java:
+        recomp_verify_paralleljava(spec, cfg)
     else:
         verify_single_process(spec, cfg, cust, naive, verbose)
 
