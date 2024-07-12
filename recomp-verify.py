@@ -75,24 +75,15 @@ def verify_single_process(spec, cfg, cust, naive, verbose):
 def verify_capture_output(spec, cfg, pdir, *args):
     shutil.copy(spec, pdir+"/")
     shutil.copy(cfg, pdir+"/")
-    #os.chdir(pdir)
-    #write("out.log","")
 
     cmd_args = ["java", "-Xmx7g", "-jar", tool, spec, cfg]
     for arg in args:
         cmd_args.append(arg)
 
-    # uses TLC to run the one-component case
     if pdir == "mono":
         cmd_args = ["java", "-Xmx7g", "-jar", tlc, "-deadlock", "-workers", "1", "-config", cfg, spec]
 
-    #naive_log = open("out.log","w")
-    #process = subprocess.Popen(cmd_args, stdout=naive_log.fileno())
-    #process.wait()
-    #return open("naive/out.log").read().rstrip()
-    #ret = subprocess.run(cmd_args, capture_output=True, text=True)
-
-    cd_args = ["cd",pdir]
+    cd_args = ["cd", pdir]
     cmd = " ".join(cd_args) + "; " + " ".join(cmd_args)
     ret = subprocess.run(cmd, capture_output=True, text=True, shell=True)
 
@@ -104,19 +95,18 @@ def run_multi_verif(dest_dir, spec, cfg):
 
     # spawn a process for the naive map
     f = partial(verify_capture_output, spec, cfg, "naive", "--naive")
-    futures.append( executor.submit(f) )
+    futures.append(executor.submit(f))
 
     # spawn a process for each recomp map
     pdirs = ["mono", "cust_1", "cust_2"]
     for pdir in pdirs:
         f = partial(verify_capture_output, spec, cfg, pdir, "--cust", "custom_recomp.csv")
-        futures.append( executor.submit(f) )
+        futures.append(executor.submit(f))
 
     done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
     winner = done.pop()
     output = winner.result()
-    #for future in not_done:
-    #future.cancel()
+
     return output
 
 def verify_multi_process(spec, cfg, verbose):
@@ -136,8 +126,6 @@ def verify_multi_process(spec, cfg, verbose):
 
     # if there's only one component then there is no need to run multiple processes
     if len(components) <= 1:
-        #os.chdir(orig_dir)
-        #verify_single_process(spec, cfg, False, False, verbose)
         os.makedirs("mono", exist_ok=True)
         output = verify_capture_output(spec, cfg, "mono")
         print(output)
@@ -163,6 +151,44 @@ def verify_multi_process(spec, cfg, verbose):
     print(".")
 
 def recomp_verify_paralleljava(spec, cfg):
+    # Prepare directories and cleanup
+    orig_dir = os.getcwd()
+    os.makedirs("out", exist_ok=True)
+    dest_dir = orig_dir + "/out"
+    shutil.copy(spec, dest_dir)
+    shutil.copy(cfg, dest_dir)
+    os.chdir("out")
+
+    # Decompose the specification
+    os.makedirs("decomp", exist_ok=True)
+    shutil.copy(spec, "decomp/")
+    shutil.copy(cfg, "decomp/")
+    os.chdir("decomp")
+    components = decomp(spec, cfg)
+    os.chdir(dest_dir)
+
+    # if there's only one component then there is no need to run multiple processes
+    if len(components) <= 1:
+        os.makedirs("mono", exist_ok=True)
+        output = verify_capture_output(spec, cfg, "mono")
+        print(output)
+        print(".")
+        return
+
+    # otherwise, build three recomp maps
+    os.makedirs("mono", exist_ok=True)
+    os.makedirs("cust_1", exist_ok=True)
+    os.makedirs("cust_2", exist_ok=True)
+    mono = ",".join(components) + "\n"
+    recomp_1 = components[0] + "\n" + ",".join(components[1:]) + "\n"
+    recomp_2 = ",".join(components[0:-1]) + "\n" + components[-1] + "\n"
+    write("mono/custom_recomp.csv", mono)
+    write("cust_1/custom_recomp.csv", recomp_1)
+    write("cust_2/custom_recomp.csv", recomp_2)
+
+    # also run the naive mapping
+    os.makedirs("naive", exist_ok=True)
+
     # Run the Java recomp-verify tool with the provided spec and cfg
     cmd_args = ["java", "-jar", tool, spec, cfg]
     subprocess.run(cmd_args)
