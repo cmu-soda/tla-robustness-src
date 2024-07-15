@@ -11,6 +11,8 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 tool = root_dir + "/bin/recomp-verify.jar"
 tlc = root_dir + "/bin/tla2tools.jar"
 
+# some change Eduardo is testing
+
 def write(name, contents):
     f = open(name, "w")
     f.write(contents)
@@ -75,13 +77,22 @@ def verify_single_process(spec, cfg, cust, naive, verbose):
 def verify_capture_output(spec, cfg, pdir, *args):
     shutil.copy(spec, pdir+"/")
     shutil.copy(cfg, pdir+"/")
+    #os.chdir(pdir)
+    #write("out.log","")
 
     cmd_args = ["java", "-Xmx7g", "-jar", tool, spec, cfg]
     for arg in args:
         cmd_args.append(arg)
 
+    # uses TLC to run the one-component case
     if pdir == "mono":
         cmd_args = ["java", "-Xmx7g", "-jar", tlc, "-deadlock", "-workers", "1", "-config", cfg, spec]
+
+    #naive_log = open("out.log","w")
+    #process = subprocess.Popen(cmd_args, stdout=naive_log.fileno())
+    #process.wait()
+    #return open("naive/out.log").read().rstrip()
+    #ret = subprocess.run(cmd_args, capture_output=True, text=True)
 
     cd_args = ["cd", pdir]
     cmd = " ".join(cd_args) + "; " + " ".join(cmd_args)
@@ -106,7 +117,8 @@ def run_multi_verif(dest_dir, spec, cfg):
     done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
     winner = done.pop()
     output = winner.result()
-
+    #for future in not_done:
+    #future.cancel()
     return output
 
 def verify_multi_process(spec, cfg, verbose):
@@ -126,6 +138,8 @@ def verify_multi_process(spec, cfg, verbose):
 
     # if there's only one component then there is no need to run multiple processes
     if len(components) <= 1:
+        #os.chdir(orig_dir)
+        #verify_single_process(spec, cfg, False, False, verbose)
         os.makedirs("mono", exist_ok=True)
         output = verify_capture_output(spec, cfg, "mono")
         print(output)
