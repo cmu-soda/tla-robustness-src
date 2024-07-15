@@ -3,8 +3,8 @@
 
 EXTENDS Naturals, FiniteSets
 
-Node == {"n1","n2","n3","n4"}
-Value == {"v1","v2","v3","v4"}
+Node == {"n1","n2","n3"}
+Value == {"v1","v2","v3"}
 Quorum == { S \in SUBSET Node : Cardinality(S)*2 > Cardinality(Node) }
 
 VARIABLE vote_request_msg
