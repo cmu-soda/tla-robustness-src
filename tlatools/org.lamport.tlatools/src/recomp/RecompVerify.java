@@ -46,24 +46,27 @@ import tlc2.Utils.Pair;
 import tlc2.tool.ExtKripke;
 import tlc2.tool.impl.FastTool;
 
+import static recomp.RVStrategy.createStrategies;
+
 public class RecompVerify {
 
-	public static void recompVerify(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose) {
+	public static void runRecompVerify(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose) {
 		// write a config without any invariants / properties
 		final String noInvsCfg = "no_invs.cfg";
 		Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
 
-		// Make ArrayList of threads and strategies. Join threads which runs all of them
-		try {
-	//		ArrayList<Thread> threads = new ArrayList<>();
-	//      ArrayList<RVStrategy> strategies = new ArrayList<>();
-			RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose);
-			Thread thread = new Thread(sampleStrategy);
-			thread.start();
-			thread.join();
-		} catch (InterruptedException e) {
-			System.out.println("Thread interrupted while waiting on something.");
-			throw new RuntimeException(e);
+		// Create strategies
+        List<RVStrategy> strategies = null;
+        try {
+            strategies = createStrategies(tla, cfg, recompType, recompFile, verbose);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+		// If strategies is not null create the strategies
+        if (strategies != null) {
+			for (RVStrategy strategy : strategies) {
+				strategy.run();
+			}
 		}
 
 		// not unix convention, but we use this to signal to the wrapper script that	// not unix convention, but we use this to signal to the wrapper script that

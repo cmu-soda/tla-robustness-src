@@ -31,13 +31,26 @@ public class RVStrategy implements Runnable {
         this.verbose = verbose;
     }
 
+    // Each thread needs a run() method
+    @ Override
+    public void run() {
+        // Each tread performs runRecompStrategy with the given instance variables of the instantiated class
+        try {
+            List<String> rawComponents = Decomposition.decompAll(tla, cfg);
+            runRecompStrategy(rawComponents);
+        } catch (Exception e) {
+            System.out.println("Thread interrupted while waiting on something.");
+        }
+    }
+
     // returns state of globalIsDone and sets it to true
-    static synchronized public boolean isThreadDone() {
+    private static synchronized boolean isThreadDone() {
         boolean isDone = globalIsDone;
         globalIsDone = true;
         return isDone;
     }
 
+    // runs a singular recompositionStrategy (from the choices of bottom-heavy, top-heavy, identity, etc.
     public void runRecompStrategy(final List<String> rawComponents) {
         String printMsg = "";
         PerfTimer timer = new PerfTimer();
@@ -106,7 +119,6 @@ public class RVStrategy implements Runnable {
             }
             return;
         }
-
         // at this point, ltsProp represents the interface requirement for the 1st component.
         // therefore, there is no need to look at the 1st component in the following loop.
 
@@ -197,16 +209,17 @@ public class RVStrategy implements Runnable {
         // it should produce an error trace	// it should produce an error trace
     }
 
-    // Must implement run() for Runnable (threads)
-    @ Override
-    public void run() {
-        // Each tread performs runRecompStrategy with the given instance variables of the instantiated class
-        try {
-            List<String> rawComponents = Decomposition.decompAll(tla, cfg);
-            runRecompStrategy(rawComponents);
-        } catch (Exception e) {
-            System.out.println("Thread interrupted while waiting on something.");
+    // Creates a List of strategies (implementation of different strategies to be completed)
+    public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose) throws InterruptedException {
+        List<RVStrategy> strategies = new ArrayList<>();
+        if ("PARALLEL".equalsIgnoreCase(recompType)) {
+            // only adding identity strategy.
+            strategies.add(new RVStrategy(tla, cfg, recompType, recompFile, verbose));
+        } else {
+            RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose);
+            strategies.add(sampleStrategy);
         }
-
+        return strategies;
     }
+
 }
