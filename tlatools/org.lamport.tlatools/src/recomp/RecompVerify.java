@@ -50,7 +50,7 @@ import static recomp.RVStrategy.createStrategies;
 
 public class RecompVerify {
 
-	public static void runRecompVerify(final String tla, final String cfg, final String recompType, final String recompFile, boolean verbose) {
+	public static void runRecompVerify(final String tla, final String cfg, final String recompStrategy, final String recompFile, boolean verbose) {
 		// write a config without any invariants / properties
 		final String noInvsCfg = "no_invs.cfg";
 		Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
@@ -58,7 +58,7 @@ public class RecompVerify {
 		// Create strategies
         List<RVStrategy> strategies = null;
         try {
-            strategies = createStrategies(tla, cfg, recompType, recompFile, verbose);
+            strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
