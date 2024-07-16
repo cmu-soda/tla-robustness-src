@@ -102,6 +102,34 @@ public class Composition {
 		final boolean allCompoments = orderedComponents.size() == rawComponents.size();
 		return Decomposition.decompForSymbolicCompose(tla, cfg, groupings, allCompoments);
 	}
+
+	// These following functions are different potential stragies.
+
+	private static List<List<String>> createBottomHeavyGroupings(final List<String> orderedComponents) {
+		List<List<String>> groupings = new ArrayList<>();
+		// First component alone
+		groupings.add(List.of(orderedComponents.get(0)));
+		// All remaining components together
+		List<String> bottomHeavyGroup = new LinkedList<>();
+		for (int i = 1; i < orderedComponents.size(); i++) {
+			bottomHeavyGroup.add(orderedComponents.get(i));
+		}
+		groupings.add(bottomHeavyGroup);
+		return groupings;
+	}
+
+	private static List<List<String>> createTopHeavyGroupings(final List<String> orderedComponents) {
+		List<List<String>> groupings = new ArrayList<>();
+		// All but the last component together
+		List<String> topHeavyGroup = new LinkedList<>();
+		for (int i = 0; i < orderedComponents.size() - 1; i++) {
+			topHeavyGroup.add(orderedComponents.get(i));
+		}
+		groupings.add(topHeavyGroup);
+		// Last component alone
+		groupings.add(List.of(orderedComponents.get(orderedComponents.size() - 1)));
+		return groupings;
+	}
 	
 	/**
 	 * Orders the components by how they talk to each other through their interfaces (alphabets).
