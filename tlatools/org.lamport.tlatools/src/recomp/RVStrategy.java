@@ -15,7 +15,7 @@ import static recomp.RecompVerify.writeErrorTraceFile;
 
 public class RVStrategy implements Runnable {
     // Global variable for purpose of seeing when threads are done
-    public static boolean globalIsDone = false;
+    public static String globalPrintMsg = null;
 
     private String tla;
     private String cfg;
@@ -44,10 +44,11 @@ public class RVStrategy implements Runnable {
     }
 
     // returns state of globalIsDone and sets it to true
-    private static synchronized boolean isThreadDone() {
-        boolean isDone = globalIsDone;
-        globalIsDone = true;
-        return isDone;
+    private static synchronized String isThreadDone(String message) {
+        if (globalPrintMsg == null) {
+            globalPrintMsg = message;
+        }
+        return globalPrintMsg;
     }
 
     // runs a singular recompositionStrategy (from the choices of bottom-heavy, top-heavy, identity, etc.
@@ -101,9 +102,7 @@ public class RVStrategy implements Runnable {
             printMsg = Utils.addPrint(printMsg, ("k: " + 0));
             printMsg = Utils.addPrint(printMsg, ("Total # states checked: " + totalNumStatesChecked));
             printMsg = Utils.addPrint(printMsg, ("Property satisfied!"));
-            if (!RVStrategy.isThreadDone()) {
-                System.out.print(printMsg);
-            }
+            isThreadDone(printMsg);
             return;
         }
 
@@ -114,9 +113,7 @@ public class RVStrategy implements Runnable {
             printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
             printMsg = Utils.addPrint(printMsg, "Property may be violated.");
             //FSPWriter.INSTANCE.write(System.out, ltsProp);
-            if (!RVStrategy.isThreadDone()) {
-                System.out.print(printMsg);
-            }
+            isThreadDone(printMsg);
             return;
         }
         // at this point, ltsProp represents the interface requirement for the 1st component.
@@ -172,9 +169,7 @@ public class RVStrategy implements Runnable {
                 printMsg = Utils.addPrint(printMsg, "k: " + i);
                 printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
                 printMsg = Utils.addPrint(printMsg, "Property satisfied!");
-                if (!RVStrategy.isThreadDone()) {
-                    System.out.print(printMsg);
-                }
+                isThreadDone(printMsg);
                 return;
             }
             if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
@@ -184,9 +179,7 @@ public class RVStrategy implements Runnable {
                 printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
                 printMsg = Utils.addPrint(printMsg, "Property may be violated.");
                 //FSPWriter.INSTANCE.write(System.out, ltsProp);
-                if (!RVStrategy.isThreadDone()) {
-                    System.out.print(printMsg);
-                }
+                isThreadDone(printMsg);
                 return;
             }
         }
@@ -198,15 +191,13 @@ public class RVStrategy implements Runnable {
         printMsg = Utils.addPrint(printMsg, "Property may be violated.");
 
         //Output everything
-        if (!RVStrategy.isThreadDone()) {
-            System.out.print(printMsg);
-        }
+        isThreadDone(printMsg);
 
         // encode the sequence of actions that leads to an error in a new TLA+ file	// encode the sequence of actions that leads to an error in a new TLA+ file
         // TODO write error trace for early termination	// TODO write error trace for early termination
         writeErrorTraceFile(tla, cfg, ltsProp);
 
-        // it should produce an error trace	// it should produce an error trace
+        // it should produce an error trace
     }
 
     // Creates a List of strategies (implementation of different strategies to be completed)

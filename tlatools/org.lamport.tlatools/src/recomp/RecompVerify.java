@@ -68,8 +68,9 @@ public class RecompVerify {
 				strategy.run();
 			}
 		}
+		System.out.print(RVStrategy.globalPrintMsg);
 
-		// not unix convention, but we use this to signal to the wrapper script that	// not unix convention, but we use this to signal to the wrapper script that
+		// not unix convention, but we use this to signal to the wrapper script that
 		System.exit(99);
 	}
 
