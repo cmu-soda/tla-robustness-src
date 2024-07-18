@@ -17,7 +17,7 @@ import tlc2.Utils;
 import tlc2.tool.impl.FastTool;
 
 public class Composition {
-	
+
 	public static List<String> orderedTrimmedComponents(final String tla, final String cfg, final List<String> rawComponents) {
 		final Set<String> neededComponents = interfaceOrdering(rawComponents)
 				.stream()
@@ -28,7 +28,7 @@ public class Composition {
 				.collect(Collectors.toList());
 		return dataFlowOrdering(tla, cfg, trimmedComponents);
 	}
-	
+
 	public static List<String> symbolicCompose(final String tla, final String cfg,
 			final String recompType, final String recompFile, final List<String> rawComponents) {
 		// interfaceOrdering() trims unneeded components. Don't use the ordering, but do use it to trim components.
@@ -39,71 +39,76 @@ public class Composition {
 				.stream()
 				.filter(c -> neededComponents.contains(c))
 				.collect(Collectors.toList());
-		
+
 		final boolean useHeuristic = !recompType.equals("CUSTOM") && !recompType.equals("NAIVE");
 		final List<String> orderedComponents = useHeuristic ? dataFlowOrdering(tla, cfg, trimmedComponents) : trimmedComponents;
-		
+
 		List<List<String>> groupings = new ArrayList<>();
-		
-		// custom re-mapping
-		if (recompType.equals("CUSTOM")) {
-			Utils.fileContents(recompFile)
-				.stream()
-				.map(l -> Utils.toArrayList(l.split(",")))
-				.map(a -> a.stream().map(c -> c.trim()).collect(Collectors.toList()))
-				.forEach(a -> groupings.add(a));
-			
-			// sanity check
-			final Set<String> rawCmptSet = orderedComponents.stream().collect(Collectors.toSet());
-			final Set<String> grCmptSet = groupings
-					.stream()
-					.reduce((Set<String>) new HashSet<String>(),
-							(acc, g) -> Utils.union(acc, g.stream().collect(Collectors.toSet())),
-							(s, t) -> Utils.union(s, t));
-			if (!grCmptSet.equals(rawCmptSet)) {
-				// some extra debugging info for the user
-				System.err.println("Components expected:");
-				for (String s : rawCmptSet) {
-					System.err.println("  " + s);
-				}
-				System.err.println("Components seen:");
-				for (String s : grCmptSet) {
-					System.err.println("  " + s);
-				}
-				Utils.assertTrue(false, "Invalid custom recomp map!");
-			}
+
+		//new code
+		switch (recompType) {
+			case "CUSTOM":
+				// custom re-mapping
+				groupings = createCustomGrouping(recompFile, orderedComponents);
+				break;
+			case "NAIVE":
+				groupings = createNaiveGroupings(orderedComponents);
+				break;
+			case "bottom-heavy":
+				groupings = createBottomHeavyGroupings(orderedComponents);
+				break;
+			case "top-heavy":
+				groupings = createTopHeavyGroupings(orderedComponents);
+				break;
+			default:
+				// Follows a hueristic which is given
+				groupings = createHeuristicGroupings(tla, cfg, orderedComponents);
+				break;
 		}
-		// naive re-mapping
-		else if (recompType.equals("NAIVE")) {
-			for (final String c : orderedComponents) {
-				groupings.add(List.of(c));
-			}
-		}
-		// by default we create the re-mapping using the heuristic
-		else {
-			List<String> curGroup = new LinkedList<>();
-			groupings.add(curGroup);
-			String prevComponent = orderedComponents.get(0);
-			curGroup.add(prevComponent);
-			for (int i = 1; i < orderedComponents.size(); ++i) {
-				final String curComponent = orderedComponents.get(i);
-				// if the vars of a component occur alone in at least one action then do not group it with the previous component. otherwise:
-				// only group adjacent components together if their vars overlap in at least one action
-				if (varsAppearAloneInAtLeastOneAction(tla, cfg, curComponent) ||
-						!varsOverlapInAtLeastOneAction(tla, cfg, prevComponent, curComponent)) {
-					curGroup = new LinkedList<>();
-					groupings.add(curGroup);
-				}
-				curGroup.add(curComponent);
-				prevComponent = curComponent;
-			}
-		}
-		
+
 		final boolean allCompoments = orderedComponents.size() == rawComponents.size();
 		return Decomposition.decompForSymbolicCompose(tla, cfg, groupings, allCompoments);
 	}
 
-	// These following functions are different potential stragies.
+	// These following functions are different potential strategies.
+
+	private static List<List<String>> createNaiveGroupings(final List<String> orderedComponents) {
+		List<List<String>> groupings = new ArrayList<>();
+		for (final String c : orderedComponents) {
+			groupings.add(List.of(c));
+		}
+		return groupings;
+	}
+
+	private static List<List<String>> createCustomGrouping(final String recompFile, final List<String> orderedComponents) {
+		List<List<String>> groupings = new ArrayList<>();
+		Utils.fileContents(recompFile)
+				.stream()
+				.map(l -> Utils.toArrayList(l.split(",")))
+				.map(a -> a.stream().map(c -> c.trim()).collect(Collectors.toList()))
+				.forEach(a -> groupings.add(a));
+
+		// sanity check
+		final Set<String> rawCmptSet = orderedComponents.stream().collect(Collectors.toSet());
+		final Set<String> grCmptSet = groupings
+				.stream()
+				.reduce((Set<String>) new HashSet<String>(),
+						(acc, g) -> Utils.union(acc, g.stream().collect(Collectors.toSet())),
+						(s, t) -> Utils.union(s, t));
+		if (!grCmptSet.equals(rawCmptSet)) {
+			// some extra debugging info for the user
+			System.err.println("Components expected:");
+			for (String s : rawCmptSet) {
+				System.err.println("  " + s);
+			}
+			System.err.println("Components seen:");
+			for (String s : grCmptSet) {
+				System.err.println("  " + s);
+			}
+			Utils.assertTrue(false, "Invalid custom recomp map!");
+		}
+		return groupings;
+	}
 
 	private static List<List<String>> createBottomHeavyGroupings(final List<String> orderedComponents) {
 		List<List<String>> groupings = new ArrayList<>();
@@ -130,13 +135,34 @@ public class Composition {
 		groupings.add(List.of(orderedComponents.get(orderedComponents.size() - 1)));
 		return groupings;
 	}
-	
-	/**
-	 * Orders the components by how they talk to each other through their interfaces (alphabets).
-	 * This method will trim components that can (provably) not affect verification.
-	 * @param rawComponents
-	 * @return
-	 */
+
+	private static List<List<String>> createHeuristicGroupings(final String tla, final String cfg, final List<String> orderedComponents) {
+		List<List<String>> groupings = new ArrayList<>();
+		List<String> curGroup = new LinkedList<>();
+		groupings.add(curGroup);
+		String prevComponent = orderedComponents.get(0);
+		curGroup.add(prevComponent);
+		for (int i = 1; i < orderedComponents.size(); ++i) {
+			final String curComponent = orderedComponents.get(i);
+			// if the vars of a component occur alone in at least one action then do not group it with the previous component. otherwise:
+			// only group adjacent components together if their vars overlap in at least one action
+			if (varsAppearAloneInAtLeastOneAction(tla, cfg, curComponent) ||
+					!varsOverlapInAtLeastOneAction(tla, cfg, prevComponent, curComponent)) {
+				curGroup = new LinkedList<>();
+				groupings.add(curGroup);
+			}
+			curGroup.add(curComponent);
+			prevComponent = curComponent;
+		}
+		return groupings;
+	}
+
+		/**
+         * Orders the components by how they talk to each other through their interfaces (alphabets).
+         * This method will trim components that can (provably) not affect verification.
+         * @param rawComponents
+         * @return
+         */
 	private static List<String> interfaceOrdering(final List<String> rawComponents) {
 		if (rawComponents.isEmpty()) {
 			return rawComponents;
