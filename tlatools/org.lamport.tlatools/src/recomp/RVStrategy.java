@@ -14,6 +14,13 @@ import java.util.List;
 import static recomp.RecompVerify.writeErrorTraceFile;
 
 public class RVStrategy implements Runnable {
+    /**
+     * Implements a specific recomposition strategy on its own thread. After decomposing a TLA file
+     * into components, it uses the instatiated recomposition Strategy to model check.
+     *
+     * Multiple RVStragegy instances are meant to be run in parallel (check RecompVerify.java)
+     **/
+
     // Global variable for purpose of seeing when threads are done
     public static String globalPrintMsg = null;
 
