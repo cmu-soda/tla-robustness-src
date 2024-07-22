@@ -29,13 +29,16 @@ public class RVStrategy implements Runnable {
     private String recompType;
     private String recompFile;
     private boolean verbose;
+    private RVResult result;
 
-    public RVStrategy(String tla, String cfg, String recompType, String recompFile, boolean verbose) throws InterruptedException {
+
+    public RVStrategy(String tla, String cfg, String recompType, String recompFile, boolean verbose, RVResult result) throws InterruptedException {
         this.tla = tla;
         this.cfg = cfg;
         this.recompType = recompType;
         this.recompFile = recompFile;
         this.verbose = verbose;
+        this.result = result;
     }
 
     // Each thread needs a run() method
@@ -48,14 +51,6 @@ public class RVStrategy implements Runnable {
         } catch (Exception e) {
             System.out.println("Thread interrupted while waiting on something.");
         }
-    }
-
-    // returns state of globalIsDone and sets it to true
-    private static synchronized String isThreadDone(String message) {
-        if (globalPrintMsg == null) {
-            globalPrintMsg = message;
-        }
-        return globalPrintMsg;
     }
 
     // runs a singular recompositionStrategy (from the choices of bottom-heavy, top-heavy, identity, etc.
@@ -109,7 +104,7 @@ public class RVStrategy implements Runnable {
             printMsg = Utils.addPrint(printMsg, ("k: " + 0));
             printMsg = Utils.addPrint(printMsg, ("Total # states checked: " + totalNumStatesChecked));
             printMsg = Utils.addPrint(printMsg, ("Property satisfied!"));
-            isThreadDone(printMsg);
+            result.setIfWinner(printMsg, ltsProp);
             return;
         }
 
@@ -120,7 +115,7 @@ public class RVStrategy implements Runnable {
             printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
             printMsg = Utils.addPrint(printMsg, "Property may be violated.");
             //FSPWriter.INSTANCE.write(System.out, ltsProp);
-            isThreadDone(printMsg);
+            result.setIfWinner(printMsg, ltsProp);
             return;
         }
         // at this point, ltsProp represents the interface requirement for the 1st component.
@@ -176,7 +171,7 @@ public class RVStrategy implements Runnable {
                 printMsg = Utils.addPrint(printMsg, "k: " + i);
                 printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
                 printMsg = Utils.addPrint(printMsg, "Property satisfied!");
-                isThreadDone(printMsg);
+                result.setIfWinner(printMsg, ltsProp);
                 return;
             }
             if (SafetyUtils.INSTANCE.hasErrInitState(ltsProp)) {
@@ -186,7 +181,7 @@ public class RVStrategy implements Runnable {
                 printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
                 printMsg = Utils.addPrint(printMsg, "Property may be violated.");
                 //FSPWriter.INSTANCE.write(System.out, ltsProp);
-                isThreadDone(printMsg);
+                result.setIfWinner(printMsg, ltsProp);
                 return;
             }
         }
@@ -197,24 +192,26 @@ public class RVStrategy implements Runnable {
         printMsg = Utils.addPrint(printMsg, "Total # states checked: " + totalNumStatesChecked);
         printMsg = Utils.addPrint(printMsg, "Property may be violated.");
 
-        //Output everything
-        isThreadDone(printMsg);
+        // Successful run
+        result.setIfWinner(printMsg, ltsProp);
+
 
         // encode the sequence of actions that leads to an error in a new TLA+ file	// encode the sequence of actions that leads to an error in a new TLA+ file
-        // TODO write error trace for early termination	// TODO write error trace for early termination
-        writeErrorTraceFile(tla, cfg, ltsProp);
+        // TODO write error trace for early termination
+        writeErrorTraceFile(tla, cfg, result.getLTS());
 
-        // it should produce an error trace
     }
 
     // Creates a List of strategies (implementation of different strategies to be completed)
-    public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose) throws InterruptedException {
+    public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose, RVResult result) throws InterruptedException {
         List<RVStrategy> strategies = new ArrayList<>();
         if ("PARALLEL".equalsIgnoreCase(recompType)) {
+            System.out.println("parallel flag");
             // only adding identity strategy.
-            strategies.add(new RVStrategy(tla, cfg, recompType, recompFile, verbose));
+            strategies.add(new RVStrategy(tla, cfg, recompType, recompFile, verbose, result));
         } else {
-            RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose);
+            System.out.println("single threaded");
+            RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose, result);
             strategies.add(sampleStrategy);
         }
         return strategies;

@@ -54,23 +54,31 @@ public class RecompVerify {
 		// write a config without any invariants / properties
 		final String noInvsCfg = "no_invs.cfg";
 		Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
+		RVResult result = new RVResult();
 
 		// Create strategies
         List<RVStrategy> strategies = null;
         try {
-            strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose);
+            strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose, result);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 		// If strategies is not null create the strategies
         if (strategies != null) {
 			for (RVStrategy strategy : strategies) {
-				strategy.run();
+				Thread thread = new Thread(strategy);
+				thread.start();
+				try {
+					thread.join(); // Wait for each thread to finish
+				} catch (InterruptedException e) {
+					// This is a silent failing (intended)
+				}
 			}
 		}
-		System.out.print(RVStrategy.globalPrintMsg);
 
-		// not unix convention, but we use this to signal to the wrapper script that
+		System.out.println(result.getMsg());
+
+		// it should produce an error trace
 		System.exit(99);
 	}
 
