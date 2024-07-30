@@ -196,7 +196,7 @@ public class RVStrategy implements Runnable {
         result.setIfWinner(printMsg, ltsProp);
 
 
-        // encode the sequence of actions that leads to an error in a new TLA+ file	// encode the sequence of actions that leads to an error in a new TLA+ file
+        // encode the sequence of actions that leads to an error in a new TLA+ file
         // TODO write error trace for early termination
         writeErrorTraceFile(tla, cfg, result.getLTS());
 

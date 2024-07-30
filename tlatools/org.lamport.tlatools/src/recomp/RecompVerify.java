@@ -9,6 +9,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -54,7 +56,7 @@ public class RecompVerify {
 		// write a config without any invariants / properties
 		final String noInvsCfg = "no_invs.cfg";
 		Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
-		RVResult result = new RVResult();
+		RVResult result = new RVResult(); // exactly one instance
 
 		// Create strategies
         List<RVStrategy> strategies = null;
@@ -63,16 +65,36 @@ public class RecompVerify {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+
+		final ReentrantLock lock = new ReentrantLock();
+		final Condition condition = lock.newCondition();
+
 		// If strategies is not null create the strategies
-        if (strategies != null) {
+		// If strategies is not null create the strategies
+		if (strategies != null) {
 			for (RVStrategy strategy : strategies) {
-				Thread thread = new Thread(strategy);
+				Thread thread = new Thread(() -> {
+					try {
+						strategy.run();
+					} finally {
+						lock.lock();
+						try {
+							condition.signal();
+						} finally {
+							lock.unlock();
+						}
+					}
+				});
 				thread.start();
-				try {
-					thread.join(); // Wait for each thread to finish
-				} catch (InterruptedException e) {
-					// This is a silent failing (intended)
-				}
+			}
+
+			lock.lock();
+			try {
+				condition.await();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			} finally {
+				lock.unlock();
 			}
 		}
 
