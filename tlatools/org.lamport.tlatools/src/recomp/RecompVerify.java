@@ -52,6 +52,8 @@ import static recomp.RVStrategy.createStrategies;
 
 public class RecompVerify {
 
+	public static RVResult result = new RVResult();
+
 	public static void runRecompVerify(final String tla, final String cfg, final String recompStrategy, final String recompFile, boolean verbose) {
 		// write a config without any invariants / properties
 		final String noInvsCfg = "no_invs.cfg";
@@ -97,8 +99,11 @@ public class RecompVerify {
 				lock.unlock();
 			}
 		}
-
 		System.out.println(result.getMsg());
+
+		// encode the sequence of actions that leads to an error in a new TLA+ file
+		// TODO write error trace for early termination
+		writeErrorTraceFile(tla, cfg, result.getLTS());
 
 		// it should produce an error trace
 		System.exit(99);
