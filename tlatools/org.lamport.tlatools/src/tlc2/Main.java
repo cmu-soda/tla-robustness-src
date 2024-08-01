@@ -37,24 +37,28 @@ public class Main {
     		}
     		else {
     			// run recomp-verify
-        		final boolean verbose = hasFlag(args, "--verbose");
-        		final boolean custom = hasFlag(args, "--cust");
-        		final boolean naive = hasFlag(args, "--naive");
-				final boolean parallel = hasFlag(args, "--parallel");
+				final boolean verbose = hasFlag(args, "--verbose");
+				final boolean custom = hasFlag(args, "--cust");
+				final boolean naive = hasFlag(args, "--naive");
+				final boolean parallel = hasFlag(args, "--all-strategies");
+				final boolean strategyFlag = hasFlag(args, "--strategy");
+				final String strategy = strategyFlag ? positionalArg(args, "--strategy") : "";
+
 				//final boolean heuristic = !custom && !naive;
         		final String recompFile = custom ? positionalArg(args, "--cust") : "";
         		
         		// TODO ian this is lazy
         		Utils.assertTrue(!custom || !recompFile.isEmpty(), "--cust must be followed by a recomp file!");
         		Utils.assertTrue(!(custom && naive), "--custom and --naive are mutually exclusive options!");
-        		
-        		final String recompStrategy = custom ? "CUSTOM" : naive ? "NAIVE" : "HEURISTIC";
+
+				final String recompStrategy = custom ? "CUSTOM" : naive ? "NAIVE" : "HEURISTIC";
 
 				if (parallel) {
-					System.out.println("Parallel compilation");
-					RecompVerify.runRecompVerify(tla, cfg, "parallel", recompFile, verbose);
+					System.out.println("Parallel compilation (but in reality it's just naive)");
+					RecompVerify.runRecompVerify(tla, cfg, "NAIVE", recompFile, verbose);
 				} else {
-					RecompVerify.runRecompVerify(tla, cfg, recompStrategy, recompFile, verbose);
+					System.out.printf("The strategy is: %s%n", strategy);
+					RecompVerify.runRecompVerify(tla, cfg, strategy, recompFile, verbose);
 				}
     		}
     	}
@@ -62,8 +66,11 @@ public class Main {
     	// invalid args, display usage
     	else {
     		System.out.println("usage1: recomp-verify <spec> <cfg> [--naive] [--cust <recomp-file>] [--verbose]\n"
-    				+ "usage2: recomp-verify <spec> <cfg> --decomp\n"
-    				+ "* in usage1: --naive and --cust are mutually exclusive");
+					+ "usage2: recomp-verify <spec> <cfg> --decomp\n"
+					+ "usage3: recomp-verify <spec> <cfg> --all-strategies\n"
+					+ "usage4: recomp-verify <spec> <cfg> --strategy <strategy-name>\n"
+					+ "* in usage1: --naive and --cust are mutually exclusive"
+					+ "* in usage4: --strategy [custom | naive | bottom-heavy | top-heavy]\n");
     	}
 
     }
