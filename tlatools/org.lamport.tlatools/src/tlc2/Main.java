@@ -10,7 +10,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
     	try {
     		calc(args);
-    	}
+		}
     	catch (Exception e) {
     		e.printStackTrace();
     	}
@@ -40,7 +40,8 @@ public class Main {
         		final boolean verbose = hasFlag(args, "--verbose");
         		final boolean custom = hasFlag(args, "--cust");
         		final boolean naive = hasFlag(args, "--naive");
-        		//final boolean heuristic = !custom && !naive;
+				final boolean parallel = hasFlag(args, "--parallel");
+				//final boolean heuristic = !custom && !naive;
         		final String recompFile = custom ? positionalArg(args, "--cust") : "";
         		
         		// TODO ian this is lazy
@@ -48,7 +49,13 @@ public class Main {
         		Utils.assertTrue(!(custom && naive), "--custom and --naive are mutually exclusive options!");
         		
         		final String recompStrategy = custom ? "CUSTOM" : naive ? "NAIVE" : "HEURISTIC";
-        		RecompVerify.recompVerify(tla, cfg, recompStrategy, recompFile, verbose);
+
+				if (parallel) {
+					System.out.println("Parallel compilation");
+					RecompVerify.runRecompVerify(tla, cfg, "parallel", recompFile, verbose);
+				} else {
+					RecompVerify.runRecompVerify(tla, cfg, recompStrategy, recompFile, verbose);
+				}
     		}
     	}
     	
@@ -58,6 +65,7 @@ public class Main {
     				+ "usage2: recomp-verify <spec> <cfg> --decomp\n"
     				+ "* in usage1: --naive and --cust are mutually exclusive");
     	}
+
     }
     
     private static boolean hasFlag(String[] args, final String flag) {
