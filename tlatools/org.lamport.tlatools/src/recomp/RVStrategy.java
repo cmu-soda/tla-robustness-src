@@ -29,15 +29,18 @@ public class RVStrategy implements Runnable {
     private String recompType;
     private String recompFile;
     private boolean verbose;
+    private List<String> rawComponents;
+
     private RVResult result;
 
 
-    public RVStrategy(String tla, String cfg, String recompType, String recompFile, boolean verbose, RVResult result) throws InterruptedException {
+    public RVStrategy(String tla, String cfg, String recompType, String recompFile, boolean verbose, List<String> rawComponents, RVResult result) throws InterruptedException {
         this.tla = tla;
         this.cfg = cfg;
         this.recompType = recompType;
         this.recompFile = recompFile;
         this.verbose = verbose;
+        this.rawComponents = rawComponents;
         this.result = result;
     }
 
@@ -46,7 +49,6 @@ public class RVStrategy implements Runnable {
     public void run() {
         // Each tread performs runRecompStrategy with the given instance variables of the instantiated class
         try {
-            List<String> rawComponents = Decomposition.decompAll(tla, cfg);
             runRecompStrategy(rawComponents);
         } catch (Exception e) {
             System.out.println("Thread interrupted while waiting on something.");
@@ -194,18 +196,19 @@ public class RVStrategy implements Runnable {
 
         // Successful run
         result.setIfWinner(printMsg, ltsProp);
+
     }
 
     // Creates a List of strategies (implementation of different strategies to be completed)
-    public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose, RVResult result) throws InterruptedException {
+    public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose, List<String> rawComponents, RVResult result) throws InterruptedException {
         List<RVStrategy> strategies = new ArrayList<>();
         if ("PARALLEL".equalsIgnoreCase(recompType)) {
             System.out.println("parallel flag");
             // only adding identity strategy.
-            strategies.add(new RVStrategy(tla, cfg, recompType, recompFile, verbose, result));
+            strategies.add(new RVStrategy(tla, cfg, recompType, recompFile, verbose, rawComponents, result));
         } else {
             System.out.println("single threaded");
-            RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose, result);
+            RVStrategy sampleStrategy = new RVStrategy(tla, cfg, recompType, recompFile, verbose, rawComponents, result);
             strategies.add(sampleStrategy);
         }
         return strategies;

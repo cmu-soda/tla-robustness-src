@@ -62,51 +62,48 @@ public class RecompVerify {
 
 		// Create strategies
         List<RVStrategy> strategies = null;
-        try {
-            strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose, result);
+		List<String> rawComponents = Decomposition.decompAll(tla, cfg);
+		try {
+            strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose, rawComponents, result);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 
-		final ReentrantLock lock = new ReentrantLock();
-		final Condition condition = lock.newCondition();
+//		final ReentrantLock lock = new ReentrantLock();
+//		final Condition condition = lock.newCondition();
 
 		// If strategies is not null create the strategies
-		// If strategies is not null create the strategies
-		if (strategies != null) {
-			for (RVStrategy strategy : strategies) {
-				Thread thread = new Thread(() -> {
-					try {
-						strategy.run();
-					} finally {
-						lock.lock();
-						try {
-							condition.signal();
-						} finally {
-							lock.unlock();
-						}
-					}
-				});
-				thread.start();
-			}
-
-			lock.lock();
+		Utils.assertNotNull(strategies, "Stragies should not be null");
+		for (RVStrategy strategy : strategies) {
+			Thread thread = new Thread(strategy);
+			thread.start();
 			try {
-				condition.await();
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-			} finally {
-				lock.unlock();
+				thread.join();
+			} catch	(final InterruptedException e) {
+				throw new RuntimeException(e);
 			}
 		}
+
+//		lock.lock();
+//		try {
+//			condition.await();
+//		} catch (InterruptedException e) {
+//			Thread.currentThread().interrupt();
+//		} finally {
+//			lock.unlock();
+//		}
+
 		System.out.println(result.getMsg());
 
-		// encode the sequence of actions that leads to an error in a new TLA+ file
-		// TODO write error trace for early termination
-		writeErrorTraceFile(tla, cfg, result.getLTS());
+		if (SafetyUtils.INSTANCE.hasErrInitState(result.getLTS())) {
+			System.out.println("This should be here");
+			// encode the sequence of actions that leads to an error in a new TLA+ file
+			// TODO write error trace for early termination
+			writeErrorTraceFile(tla, cfg, result.getLTS());
+			// it should produce an error trace
+			System.exit(99);
+		}
 
-		// it should produce an error trace
-		System.exit(99);
 	}
 
 	static void writeErrorTraceFile(final String tla, final String cfg, final LTS<Integer, String> ltsProp) {
