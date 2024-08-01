@@ -54,35 +54,57 @@ public class RecompVerify {
 
 	public static RVResult result = new RVResult();
 
+
+
 	public static void runRecompVerify(final String tla, final String cfg, final String recompStrategy, final String recompFile, boolean verbose) {
+
+
+
 		// write a config without any invariants / properties
 		final String noInvsCfg = "no_invs.cfg";
 		Utils.writeFile(noInvsCfg, "SPECIFICATION Spec");
 		RVResult result = new RVResult(); // exactly one instance
 
-		// Create strategies
-        List<RVStrategy> strategies = null;
-		List<String> rawComponents = Decomposition.decompAll(tla, cfg);
-		try {
-            strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose, rawComponents, result);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+		if (recompStrategy.equalsIgnoreCase("PARALLEL")) {
+			try {
+				System.out.println("This is the parallel recompVerify!");
+				String verboseFlag = verbose ? "--verbose" : "";
+				String recompFileFlag = recompFile.isEmpty() ? "" : "--cust " + recompFile;
+				String[] cmd = {
+						"java", "-jar", "/recomp-verify/bin/recomp-verify.jar",
+						tla, cfg, "--strategy", recompStrategy, recompFileFlag, verboseFlag
+				};
+
+				Process process = new ProcessBuilder(cmd).start();
+				process.waitFor();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		else {
+			// Create strategies
+			List<RVStrategy> strategies = null;
+			List<String> rawComponents = Decomposition.decompAll(tla, cfg);
+			try {
+				strategies = createStrategies(tla, cfg, recompStrategy, recompFile, verbose, rawComponents, result);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
 
 //		final ReentrantLock lock = new ReentrantLock();
 //		final Condition condition = lock.newCondition();
 
-		// If strategies is not null create the strategies
-		Utils.assertNotNull(strategies, "Stragies should not be null");
-		for (RVStrategy strategy : strategies) {
-			Thread thread = new Thread(strategy);
-			thread.start();
-			try {
-				thread.join();
-			} catch	(final InterruptedException e) {
-				throw new RuntimeException(e);
+			// If strategies is not null create the strategies
+			Utils.assertNotNull(strategies, "Stragies should not be null");
+			for (RVStrategy strategy : strategies) {
+				Thread thread = new Thread(strategy);
+				thread.start();
+				try {
+					thread.join();
+				} catch (final InterruptedException e) {
+					throw new RuntimeException(e);
+				}
 			}
-		}
 
 //		lock.lock();
 //		try {
@@ -92,17 +114,19 @@ public class RecompVerify {
 //		} finally {
 //			lock.unlock();
 //		}
-
-		System.out.println(result.getMsg());
-
-		if (SafetyUtils.INSTANCE.hasErrInitState(result.getLTS())) {
-			System.out.println("This should be here");
-			// encode the sequence of actions that leads to an error in a new TLA+ file
-			// TODO write error trace for early termination
-			writeErrorTraceFile(tla, cfg, result.getLTS());
-			// it should produce an error trace
-			System.exit(99);
 		}
+
+			System.out.println(result.getMsg());
+
+			if (SafetyUtils.INSTANCE.hasErrInitState(result.getLTS())) {
+				System.out.println("This should be here");
+				// encode the sequence of actions that leads to an error in a new TLA+ file
+				// TODO write error trace for early termination
+				writeErrorTraceFile(tla, cfg, result.getLTS());
+				// it should produce an error trace
+				System.exit(99);
+			}
+
 
 	}
 
