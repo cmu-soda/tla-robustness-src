@@ -8,6 +8,7 @@ import tlc2.AlphabetMembershipTester;
 import tlc2.TLC;
 import tlc2.Utils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,23 +25,23 @@ public class RVStrategy implements Runnable {
     // Global variable for purpose of seeing when threads are done
     public static String globalPrintMsg = null;
 
+    private boolean inProcess;
     private String tla;
     private String cfg;
     private String recompType;
     private String recompFile;
     private boolean verbose;
-    private List<String> rawComponents;
 
     private RVResult result;
 
 
-    public RVStrategy(String tla, String cfg, String recompType, String recompFile, boolean verbose, List<String> rawComponents, RVResult result) throws InterruptedException {
+    public RVStrategy(boolean inProcess, String tla, String cfg, String recompType, String recompFile, boolean verbose, RVResult result) {
+        this.inProcess = inProcess;
         this.tla = tla;
         this.cfg = cfg;
         this.recompType = recompType;
         this.recompFile = recompFile;
         this.verbose = verbose;
-        this.rawComponents = rawComponents;
         this.result = result;
     }
 
@@ -48,20 +49,39 @@ public class RVStrategy implements Runnable {
     @ Override
     public void run() {
         // Each tread performs runRecompStrategy with the given instance variables of the instantiated class
-        try {
-            runRecompStrategy(rawComponents);
-        } catch (Exception e) {
-            System.out.println("Thread interrupted while waiting on something.");
+
+        if (this.inProcess) {
+            runRecompStrategy();
+        }
+        else {
+            String verboseFlag = verbose ? "--verbose" : "";
+            String recompFileFlag = recompFile.isEmpty() ? "" : "--cust " + recompFile;
+            String[] cmd = {
+                    "java", "-jar", "/recomp-verify/bin/recomp-verify.jar",
+                    tla, cfg, "--strategy", recompType, recompFileFlag, verboseFlag, ";" , "echo" ,"\"hi\""
+            };
+            Process process = null;
+            try {
+                process = new ProcessBuilder(cmd).start();
+                process.waitFor();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
     // runs a singular recompositionStrategy (from the choices of bottom-heavy, top-heavy, identity, etc.
-    public void runRecompStrategy(final List<String> rawComponents) {
+    public void runRecompStrategy() {
         String printMsg = "";
         PerfTimer timer = new PerfTimer();
         SymbolTable.init();
 
         final String noInvsCfg = "no_invs.cfg";
+
+        final List<String> rawComponents = Decomposition.decompAll(tla, cfg);
 
         // decompose the spec into as many components as possible
         final List<String> components = Composition.symbolicCompose(tla, cfg, recompType, recompFile, rawComponents);
@@ -200,7 +220,7 @@ public class RVStrategy implements Runnable {
     }
 
     // Creates a List of strategies (implementation of different strategies to be completed)
-    public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose, List<String> rawComponents, RVResult result) throws InterruptedException {
+    /*public static List<RVStrategy> createStrategies(String tla, String cfg, String recompType, String recompFile, boolean verbose, List<String> rawComponents, RVResult result) throws InterruptedException {
         List<RVStrategy> strategies = new ArrayList<>();
         if ("PARALLEL".equalsIgnoreCase(recompType)) {
             System.out.println("parallel flag");
@@ -212,6 +232,6 @@ public class RVStrategy implements Runnable {
             strategies.add(sampleStrategy);
         }
         return strategies;
-    }
+    }*/
 
 }
