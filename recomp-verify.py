@@ -27,11 +27,11 @@ def create_err_trace(txt):
     keep = []
     capture = False
     for l in lines:
-        if ("Error:" in l):
+        if "Error:" in l:
             capture = True
-        if ("distinct states found" in l):
+        if "distinct states found" in l:
             capture = False
-        if (capture and "errCounter" not in l):
+        if capture and "errCounter" not in l:
             keep.append(l)
     return "\n".join(keep)
 
@@ -74,6 +74,9 @@ def verify_single_process(spec, cfg, cust, naive, verbose):
 
 def verify_capture_output(spec, cfg, pdir, *args):
     # Captures output of the verification process
+    os.makedirs(pdir, exist_ok=True)
+    
+    # Copy spec and cfg to the dirs
     shutil.copy(spec, pdir + "/")
     shutil.copy(cfg, pdir + "/")
 
@@ -81,57 +84,41 @@ def verify_capture_output(spec, cfg, pdir, *args):
     for arg in args:
         cmd_args.append(arg)
 
-    # Uses TLC to run the one-component case
+    # Uses TLC to run the monolothic strategy
     if pdir == "mono":
         cmd_args = ["java", "-Xmx7g", "-jar", tlc, "-deadlock", "-workers", "1", "-config", cfg, spec]
 
-    cd_args = ["cd", pdir]
-    cmd = " ".join(cd_args) + "; " + " ".join(cmd_args)
-    ret = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+    # Change directory to pdir (AVOID RADCE CONDITIONS! {Don't overwrite files})
+    with open(f"{pdir}/stdout.log", "w") as stdout, open(f"{pdir}/stderr.log", "w") as stderr:
+        ret = subprocess.run(cmd_args, stdout=stdout, stderr=stderr, cwd=pdir)
 
-    return ret.stdout.rstrip()
+    # each dir has its own returncode
+    return ret.returncode
 
 def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     # Prepare the individual commands for each verification directory
     pdirs = ["mono", "cust_1", "cust_2", "naive"]
-    
-    # Create the parallel commands list
-    parallel_cmds = []
+
+    # make all dirs
     for pdir in pdirs:
         if pdir == "naive":
-            cmd = f"java -Xmx7g -jar {shlex.quote(tool)} {shlex.quote(spec)} {shlex.quote(cfg)} --naive"
+            # Run naive mapping
+            verify_capture_output(spec, cfg, f"{dest_dir}/naive", "--naive")
         else:
-            cmd = f"java -Xmx7g -jar {shlex.quote(tool)} {shlex.quote(spec)} {shlex.quote(cfg)} --cust custom_recomp.csv"
-        
-        # Append the command, wrapped in quotes, to the list
-        parallel_cmds.append(shlex.quote(cmd))
-    
-    # Use parallel with --halt and other options
-    parallel_cmd = f"parallel --halt now,fail=1 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
-
-    # Run the parallel command
-    process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
-
-    # Print the output in real-time
-    for line in process.stdout:
-        print(line, end="")
-
-    # Wait for the process to finish
-    process.wait()
-
-    # If there's an error, print the stderr output
-    if process.returncode != 0:
-        print(process.stderr.read())  # Display error output
-
+            # Run custom recomp mapping
+            verify_capture_output(spec, cfg, f"{dest_dir}/{pdir}", "--cust", "custom_recomp.csv")
 
 def verify_multi_process(spec, cfg, verbose):
     # Sets up directories and runs multi-process verification using the 'parallel' command
     orig_dir = os.getcwd()
     os.makedirs("out", exist_ok=True)
     dest_dir = orig_dir + "/out"
+    
+    # Ensure each process gets its own copy of the spec and cfg
     shutil.copy(spec, dest_dir)
     shutil.copy(cfg, dest_dir)
-    os.chdir("out")
+
+    os.chdir(dest_dir)
 
     # Decompose the spec and cfg
     os.makedirs("decomp", exist_ok=True)
@@ -141,20 +128,22 @@ def verify_multi_process(spec, cfg, verbose):
     components = decomp(spec, cfg)
     os.chdir(dest_dir)
 
-    # If there's only one component, there is no need to run multiple processes
+    # If there's only one component, no need for multiple processes
     if len(components) <= 1:
         os.makedirs("mono", exist_ok=True)
         output = verify_capture_output(spec, cfg, "mono")
         print(output)
         return
 
-    # Otherwise, build three recomp maps
+    # Build three recomp maps and verify each process in its own folder
     os.makedirs("mono", exist_ok=True)
     os.makedirs("cust_1", exist_ok=True)
     os.makedirs("cust_2", exist_ok=True)
+
     mono = ",".join(components) + "\n"
     recomp_1 = components[0] + "\n" + ",".join(components[1:]) + "\n"
     recomp_2 = ",".join(components[0:-1]) + "\n" + components[-1] + "\n"
+
     write("mono/custom_recomp.csv", mono)
     write("cust_1/custom_recomp.csv", recomp_1)
     write("cust_2/custom_recomp.csv", recomp_2)
@@ -162,9 +151,8 @@ def verify_multi_process(spec, cfg, verbose):
     # Also run the naive mapping
     os.makedirs("naive", exist_ok=True)
 
-    # Run the verification processes in parallel
-    output = run_multi_verif_with_parallel(dest_dir, spec, cfg)
-    print(output)
+    # Run verification processes in their respective folders
+    run_multi_verif_with_parallel(dest_dir, spec, cfg)
 
 def run():
     # Parse arguments and run the appropriate verification process
