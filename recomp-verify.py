@@ -46,6 +46,8 @@ def verify(spec, cfg, cust, naive, verbose):
         cmd_args.append("--naive")
     if verbose:
         cmd_args.append("--verbose")
+    
+    print("Command to run:", cmd_args)  # Confirm the command with --cust
     retcode = subprocess.call(cmd_args)
 
     if retcode == 99:
@@ -125,6 +127,11 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
         f'cd {os.path.join(dest_dir, "cust_2")} && python3 {script_path} {spec} {cfg} --cust',
         f'cd {os.path.join(dest_dir, "naive")} && python3 {script_path} {spec} {cfg} --naive'
     ]
+
+    for i in range(len(parallel_cmds)):
+        print(i, " : ", parallel_cmds[i])
+
+
     
     # Use parallel with --halt and other options
     parallel_cmd = f"parallel --halt now,success=1 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
@@ -196,10 +203,11 @@ def run():
 
     spec = sys.argv[1]
     cfg = sys.argv[2]
-    multi_process = len(sys.argv) >= 4 and sys.argv[3] == "--parallel"
-    cust = (len(sys.argv) >= 4 and sys.argv[3] == "--cust") or (len(sys.argv) >= 5 and sys.argv[4] == "--cust")
-    naive = (len(sys.argv) >= 4 and sys.argv[3] == "--naive") or (len(sys.argv) >= 5 and sys.argv[4] == "--naive")
-    verbose = (len(sys.argv) >= 4 and sys.argv[3] == "--verbose") or (len(sys.argv) >= 5 and sys.argv[4] == "--verbose")
+    multi_process = "--parallel" in sys.argv
+    cust = "--cust" in sys.argv
+    naive = "--naive" in sys.argv
+    verbose = "--verbose" in sys.argv
+    print("Cust is: " , cust)
 
     if multi_process:
         verify_multi_process(spec, cfg, verbose)
