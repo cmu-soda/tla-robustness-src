@@ -128,13 +128,13 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
         f'cd {os.path.join(dest_dir, "naive")} && python3 {script_path} {spec} {cfg} --naive'
     ]
 
-    for i in range(len(parallel_cmds)):
-        print(i, " : ", parallel_cmds[i])
+    # for i in range(len(parallel_cmds)):
+    #     print(i, " : ", parallel_cmds[i])
 
 
     
     # Use parallel with --halt and other options
-    parallel_cmd = f"parallel --halt now,success=1 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
+    parallel_cmd = f"parallel --halt now,success=0,99 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
 
     # Run the parallel command
     process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
@@ -146,6 +146,15 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     # Wait for the process to finish
     process.wait()
 
+    # Check each log file to see which command completed successfully
+    for subdir in subdirs:
+        log_path = os.path.join(dest_dir, subdir, f"{subdir}.log")
+        if os.path.exists(log_path):
+            with open(log_path, "r") as log_file:
+                print(f"Output of the first successful command in {subdir}:\n")
+                print(log_file.read())
+                break  # Only print the output of the first successful command
+        
     # If there's an error, print the stderr output
     if process.returncode != 0:
         print(process.stderr.read())  # Display error output
