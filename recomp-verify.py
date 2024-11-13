@@ -19,6 +19,9 @@ def decomp(spec, cfg):
     # Decomposes the spec and cfg using the recomp tool
     cmd_args = ["java", "-jar", tool, spec, cfg, "--decomp"]
     ret = subprocess.run(cmd_args, capture_output=True, text=True)
+    # Print the return code and stdout for debugging
+    print(f"Decomp command exited with return code: {ret.returncode}")
+    print(f"Decomp output: {ret.stdout}")
     return ret.stdout.rstrip().split(",")
 
 def create_err_trace(txt):
@@ -37,7 +40,6 @@ def create_err_trace(txt):
 
 def verify(spec, cfg, cust, naive, verbose):
     # Runs the model checking algorithm
-    # Use subprocess.call to send the output to stdout
     cmd_args = ["java", "-Xmx25g", "-jar", tool, spec, cfg]
     if cust:
         cmd_args.append("--cust")
@@ -47,13 +49,17 @@ def verify(spec, cfg, cust, naive, verbose):
     if verbose:
         cmd_args.append("--verbose")
     
-    print("Command to run:", cmd_args)  # Confirm the command with --cust
+    print("Command to run:", ' '.join(cmd_args))  # Confirm the command with --cust
     retcode = subprocess.call(cmd_args)
-
+    
+    # Print the return code for debugging
+    print(f"Command exited with return code: {retcode}")
+    
     if retcode == 99:
         replay_args = ["java", "-jar", tlc, "-deadlock", "ErrTrace.tla"]
         replay = subprocess.run(replay_args, capture_output=True, text=True)
         replay_out = replay.stdout
+        print(f"Replay command exited with return code: {replay.returncode}")  # Debug
         if "Error:" in replay_out:
             err_trace = create_err_trace(replay_out)
             print("Here is the error trace:\n")
@@ -90,6 +96,11 @@ def verify_capture_output(spec, cfg, pdir, *args):
     cd_args = ["cd", pdir]
     cmd = " ".join(cd_args) + "; " + " ".join(cmd_args)
     ret = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+
+    # Print the return code and stdout/stderr for debugging
+    print(f"Command exited with return code: {ret.returncode}")
+    print(f"Command stdout: {ret.stdout}")
+    print(f"Command stderr: {ret.stderr}")
 
     return ret.stdout.rstrip()
 
@@ -128,13 +139,11 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
         f'cd {os.path.join(dest_dir, "naive")} && python3 {script_path} {spec} {cfg} --naive'
     ]
 
-    # for i in range(len(parallel_cmds)):
-    #     print(i, " : ", parallel_cmds[i])
+    for i in range(len(parallel_cmds)):
+        print(i, " : ", parallel_cmds[i])
 
-
-    
     # Use parallel with --halt and other options
-    parallel_cmd = f"parallel --halt now,success=0,99 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
+    parallel_cmd = f"parallel --halt now,done=1 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
 
     # Run the parallel command
     process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
@@ -145,6 +154,10 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
 
     # Wait for the process to finish
     process.wait()
+
+    # Print the return code
+    print(f"Parallel command exited with return code: {process.returncode}")
+
 
     # Check each log file to see which command completed successfully
     for subdir in subdirs:
@@ -222,8 +235,6 @@ def run():
         verify_multi_process(spec, cfg, verbose)
     else:
         verify_single_process(spec, cfg, cust, naive, verbose)
-
 run()
 
-# Force exit to avoid zombie processes in certain cases
-os._exit(0)
+os._exit(0)  # Exit the script
