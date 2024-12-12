@@ -132,45 +132,46 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     print(spec)
     print(cfg)
     
+    #  TODO- 4 scripts to run in parallel
+
     parallel_cmds = [
-        f'"cd {os.path.join(dest_dir, "mono")} && python3 {script_path} {spec} {cfg} --cust"'
-        f'cd {os.path.join(dest_dir, "cust_1")} && python3 {script_path} {spec} {cfg} --cust',
-        f'cd {os.path.join(dest_dir, "cust_2")} && python3 {script_path} {spec} {cfg} --cust',
-        f'cd {os.path.join(dest_dir, "naive")} && python3 {script_path} {spec} {cfg} --naive'
+        f'"cd {os.path.join(dest_dir, "mono")} && python3 {script_path} {spec} {cfg} --cust > mono.log 2>&1"',
+        f'"cd {os.path.join(dest_dir, "cust_1")} && python3 {script_path} {spec} {cfg} --cust > cust_1.log 2>&1"',
+        f'"cd {os.path.join(dest_dir, "cust_2")} && python3 {script_path} {spec} {cfg} --cust > cust_2.log 2>&1"',
+        f'"cd {os.path.join(dest_dir, "naive")} && python3 {script_path} {spec} {cfg} --naive > naive.log 2>&1"'
     ]
+
 
     for i in range(len(parallel_cmds)):
         print(i, " : ", parallel_cmds[i])
 
     # Use parallel with --halt and other options
+    # done 
     parallel_cmd = f"parallel --halt now,done=1 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
 
     # Run the parallel command
     process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
 
-    # Print the output in real-time
-    for line in process.stdout:
-        print(line, end="")
-
-    # Wait for the process to finish
-    process.wait()
-
-    # Print the return code
-    print(f"Parallel command exited with return code: {process.returncode}")
-
-
-    # Check each log file to see which command completed successfully
+    # # Wait for the process to finish
+    # process.wait()
+    stdout, stderr = process.communicate()
+     # Check which log file has content
     for subdir in subdirs:
         log_path = os.path.join(dest_dir, subdir, f"{subdir}.log")
         if os.path.exists(log_path):
             with open(log_path, "r") as log_file:
-                print(f"Output of the first successful command in {subdir}:\n")
-                print(log_file.read())
-                break  # Only print the output of the first successful command
+                log_content = log_file.read().strip()
+                if log_content:  # If the log file is not empty
+                    print(f"\nOutput of the first successful command in '{subdir}':\n")
+                    print(log_content)
+                    break  # Only print the output of the first successful command
+
+    # Print the return code
+    print(f"Parallel command exited with return code: {process.returncode}")
         
     # If there's an error, print the stderr output
     if process.returncode != 0:
-        print(process.stderr.read())  # Display error output
+        print("Parallel command found an error")  # Display error output
 
 
 def verify_multi_process(spec, cfg, verbose):
