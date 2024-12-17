@@ -6,6 +6,15 @@ import subprocess
 import sys
 from functools import partial
 
+
+'''
+TODO
+1. Translate the master bash script to the python
+2. Probably rewrite some of the python script
+
+'''
+
+
 root_dir = os.path.dirname(os.path.abspath(__file__))
 tool = root_dir + "/bin/recomp-verify.jar"
 tlc = root_dir + "/bin/tla2tools.jar"
@@ -111,60 +120,85 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     # Prepare the individual subdirectories for each verification case
     subdirs = ["mono", "cust_1", "cust_2", "naive"]
     
-    # Prepare the individual commands for each verification directory
-    # cfg = os.path.abspath(cfg)
-    # spec = os.path.abspath(spec)
-    no_invs_cfg = os.path.abspath(os.path.join(os.path.dirname(cfg), "no_invs.cfg"))  # Get absolute path to no_invs.cfg
-    print(no_invs_cfg)
+    # Determine the original directory (the one containing the TLA and CFG files)
+    orig_dir = os.path.dirname(os.path.abspath(spec))
+    if not orig_dir:
+        orig_dir = os.getcwd()
+
+    # Copy no_invs.cfg to dest_dir if it exists
+    no_invs_cfg_path = os.path.join(orig_dir, "no_invs.cfg")
+    if os.path.exists(no_invs_cfg_path):
+        dest_file = os.path.join(dest_dir, "no_invs.cfg")
+        if os.path.abspath(no_invs_cfg_path) != os.path.abspath(dest_file):
+            shutil.copy(no_invs_cfg_path, dest_file)
 
     # Loop through subdirs to create each directory and copy spec, cfg, and no_invs.cfg files
     for subdir in subdirs:
         subdir_path = os.path.join(dest_dir, subdir)
         os.makedirs(subdir_path, exist_ok=True)
+        
+        # Copy the required files only if they don't already exist
+        shutil.copy(spec, os.path.join(subdir_path, os.path.basename(spec)))
+        shutil.copy(cfg, os.path.join(subdir_path, os.path.basename(cfg)))
+        if os.path.exists(no_invs_cfg_path):
+            shutil.copy(no_invs_cfg_path, os.path.join(subdir_path, "no_invs.cfg"))
 
-        # Copy the .tla, .cfg, and no_invs.cfg files into each subdirectory
-        shutil.copy(spec, subdir_path)
-        shutil.copy(cfg, subdir_path)
-        shutil.copy(no_invs_cfg, subdir_path)
+    # Define strategies and corresponding flags
+    strategy_flags = {
+        "mono": "--cust",
+        "cust_1": "--cust",
+        "cust_2": "--cust",
+        "naive": "--naive"
+    }
 
-    # Construct parallel command as before
-    print(script_path)
-    print(spec)
-    print(cfg)
+    # Define file names for each corresponding .sh file
+    script_names = ["mono.sh", "cust_1.sh", "cust_2.sh", "naive.sh"]
+
+    # Generate each shell script in the desired format
+    for subdir, script_name in zip(subdirs, script_names):
+        # The strategy flag
+        flag = strategy_flags[subdir]
+
+        # Shell script content:
+        script_content = f"""#!/usr/bin/env bash
+echo "Running {script_name}"
+echo "Spec file is: {spec}"
+echo "CFG file is: {cfg}"
+echo "Original directory is: {orig_dir}"
+
+# Navigate to the target directory
+cd "./{subdir}" || {{
+    echo "Failed to cd into the target directory." >&2
+    exit 1
+}}
+
+# Run the verification script with the {flag} option
+python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
+    "{os.path.basename(spec)}" \\
+    "{os.path.basename(cfg)}" \\
+    {flag} > "{subdir}.log" 2>&1
+"""
+        script_path = os.path.join(dest_dir, script_name)
+        with open(script_path, 'w') as f:
+            f.write(script_content)
+
+        # Make the script executable
+        os.chmod(script_path, 0o755)
     
-    #  TODO- 4 scripts to run in parallel
+    print("Shell scripts created successfully. List as follows:")
+    for script in script_names:
+        print(f"- {os.path.join(dest_dir, script)}")
 
-    parallel_cmds = [
-        f'"cd {os.path.join(dest_dir, "mono")} && python3 {script_path} {spec} {cfg} --cust > mono.log 2>&1"',
-        f'"cd {os.path.join(dest_dir, "cust_1")} && python3 {script_path} {spec} {cfg} --cust > cust_1.log 2>&1"',
-        f'"cd {os.path.join(dest_dir, "cust_2")} && python3 {script_path} {spec} {cfg} --cust > cust_2.log 2>&1"',
-        f'"cd {os.path.join(dest_dir, "naive")} && python3 {script_path} {spec} {cfg} --naive > naive.log 2>&1"'
-    ]
-
-
-    for i in range(len(parallel_cmds)):
-        print(i, " : ", parallel_cmds[i])
-
-    # Use parallel with --halt and other options
-    # done 
-    parallel_cmd = f"parallel --halt now,done=1 --line-buffer --keep-order ::: {' '.join(parallel_cmds)}"
+     # Run them in parallel
+    parallel_cmd = (
+        f'parallel --halt now,done=1 --line-buffer --keep-order ::: '
+        f'"./mono.sh" "./cust_1.sh" "./cust_2.sh" "./naive.sh"'
+    )
 
     # Run the parallel command
     process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
-
-    # # Wait for the process to finish
-    # process.wait()
     stdout, stderr = process.communicate()
-     # Check which log file has content
-    for subdir in subdirs:
-        log_path = os.path.join(dest_dir, subdir, f"{subdir}.log")
-        if os.path.exists(log_path):
-            with open(log_path, "r") as log_file:
-                log_content = log_file.read().strip()
-                if log_content:  # If the log file is not empty
-                    print(f"\nOutput of the first successful command in '{subdir}':\n")
-                    print(log_content)
-                    break  # Only print the output of the first successful command
+
 
     # Print the return code
     print(f"Parallel command exited with return code: {process.returncode}")
@@ -172,7 +206,6 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     # If there's an error, print the stderr output
     if process.returncode != 0:
         print("Parallel command found an error")  # Display error output
-
 
 def verify_multi_process(spec, cfg, verbose):
     # Sets up directories and runs multi-process verification using the 'parallel' command
@@ -214,9 +247,8 @@ def verify_multi_process(spec, cfg, verbose):
     # Also run the naive mapping
     os.makedirs("naive", exist_ok=True)
 
-    # Run the verification processes in parallel
+    # # Run the verification processes in parallel
     output = run_multi_verif_with_parallel(dest_dir, spec, cfg)
-    print(output)
 
 def run():
     # Parse arguments and run the appropriate verification process
