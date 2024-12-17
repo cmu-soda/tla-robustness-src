@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from functools import partial
+import pathlib
 
 
 '''
@@ -113,6 +114,24 @@ def verify_capture_output(spec, cfg, pdir, *args):
 
     return ret.stdout.rstrip()
 
+def get_output(dest_dir, subdirs):
+    """
+    Print contents from log files
+    """
+    print("\n--- Log Outputs ---")
+    for subdir in subdirs:
+        log_file = os.path.join(dest_dir, subdir, f"{subdir}.log")
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                content = f.read().strip()
+                if content:  # Only print non-empty logs
+                    print(f"\n- Contents of {subdir}/{subdir}.log -:\n")
+                    print(content)
+                else:
+                    print(f"\n{subdir}.log is empty.")
+        else:
+            print(f"\nLog file {subdir}.log does not exist in {subdir}.")
+
 def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     # Get the absolute path to recomp-verify.py using root_dir
     script_path = os.path.join(root_dir, "recomp-verify.py")
@@ -125,12 +144,8 @@ def run_multi_verif_with_parallel(dest_dir, spec, cfg):
     if not orig_dir:
         orig_dir = os.getcwd()
 
-    # Copy no_invs.cfg to dest_dir if it exists
-    no_invs_cfg_path = os.path.join(orig_dir, "no_invs.cfg")
-    if os.path.exists(no_invs_cfg_path):
-        dest_file = os.path.join(dest_dir, "no_invs.cfg")
-        if os.path.abspath(no_invs_cfg_path) != os.path.abspath(dest_file):
-            shutil.copy(no_invs_cfg_path, dest_file)
+    # Define the path to no_invs.cfg
+    no_invs_cfg_path = os.path.join(root_dir, "no_invs.cfg")
 
     # Loop through subdirs to create each directory and copy spec, cfg, and no_invs.cfg files
     for subdir in subdirs:
@@ -199,13 +214,13 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
     process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
     stdout, stderr = process.communicate()
 
-
     # Print the return code
     print(f"Parallel command exited with return code: {process.returncode}")
         
     # If there's an error, print the stderr output
     if process.returncode != 0:
         print("Parallel command found an error")  # Display error output
+    get_output(dest_dir, subdirs)
 
 def verify_multi_process(spec, cfg, verbose):
     # Sets up directories and runs multi-process verification using the 'parallel' command
@@ -214,7 +229,19 @@ def verify_multi_process(spec, cfg, verbose):
     dest_dir = orig_dir + "/out"
     shutil.copy(spec, dest_dir)
     shutil.copy(cfg, dest_dir)
-    shutil.copy("no_invs.cfg", dest_dir + "/no_invs.cfg")
+
+    # Copy no_invs.cfg to dest_dir if it exists, otherwise touch an empty one
+    no_invs_cfg_path = os.path.join(orig_dir, "no_invs.cfg")
+    dest_file = os.path.join(dest_dir, "no_invs.cfg")
+
+    if os.path.exists(no_invs_cfg_path):
+        # Copy the existing no_invs.cfg file
+        if os.path.abspath(no_invs_cfg_path) != os.path.abspath(dest_file):
+            shutil.copy(no_invs_cfg_path, dest_file)
+    else:
+        # Create an empty no_invs.cfg file
+        with open(dest_file, "w") as f:
+            print("Creating an empty no_invs.cfg file in the destination directory.")
 
     os.chdir("out")
 
