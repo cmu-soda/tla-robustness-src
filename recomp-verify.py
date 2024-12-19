@@ -5,16 +5,13 @@ import shutil
 import subprocess
 import sys
 from functools import partial
-import pathlib
-
 
 '''
 TODO
-1. Translate the master bash script to the python
-2. Probably rewrite some of the python script
-
+1. Output of parallel command to display
+2. Clean debugging print statements (add flag)
+3. merge (PR)
 '''
-
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 tool = root_dir + "/bin/recomp-verify.jar"
@@ -30,8 +27,8 @@ def decomp(spec, cfg):
     cmd_args = ["java", "-jar", tool, spec, cfg, "--decomp"]
     ret = subprocess.run(cmd_args, capture_output=True, text=True)
     # Print the return code and stdout for debugging
-    print(f"Decomp command exited with return code: {ret.returncode}")
-    print(f"Decomp output: {ret.stdout}")
+    # print(f"Decomp command exited with return code: {ret.returncode}")
+    # print(f"Decomp output: {ret.stdout}")
     return ret.stdout.rstrip().split(",")
 
 def create_err_trace(txt):
@@ -62,8 +59,6 @@ def verify(spec, cfg, cust, naive, verbose):
     print("Command to run:", ' '.join(cmd_args))  # Confirm the command with --cust
     retcode = subprocess.call(cmd_args)
     
-    # Print the return code for debugging
-    print(f"Command exited with return code: {retcode}")
     
     if retcode == 99:
         replay_args = ["java", "-jar", tlc, "-deadlock", "ErrTrace.tla"]
@@ -114,18 +109,31 @@ def verify_capture_output(spec, cfg, pdir, *args):
 
     return ret.stdout.rstrip()
 
-def get_output(dest_dir, subdirs):
+def get_all_output(dest_dir, subdirs):
     """
     Print contents from log files
     """
-    print("\n--- Log Outputs ---")
-    for subdir in subdirs:
+    if True:
+        print("\n--- Log Outputs ---")
+        for subdir in subdirs:
+            log_file = os.path.join(dest_dir, subdir, f"{subdir}.log")
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as f:
+                    content = f.read().strip()
+                    if content:  # Only print non-empty logs
+                        print(f"\n- Contents of {subdir}/{subdir}.log -:\n")
+                        print(content)
+                    else:
+                        print(f"\n{subdir}.log is empty.")
+            else:
+                print(f"\nLog file {subdir}.log does not exist in {subdir}.")
+
+def get_winner_output(dest_dir, subdir):
         log_file = os.path.join(dest_dir, subdir, f"{subdir}.log")
         if os.path.exists(log_file):
             with open(log_file, 'r') as f:
                 content = f.read().strip()
                 if content:  # Only print non-empty logs
-                    print(f"\n- Contents of {subdir}/{subdir}.log -:\n")
                     print(content)
                 else:
                     print(f"\n{subdir}.log is empty.")
@@ -200,9 +208,10 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
         # Make the script executable
         os.chmod(script_path, 0o755)
     
-    print("Shell scripts created successfully. List as follows:")
-    for script in script_names:
-        print(f"- {os.path.join(dest_dir, script)}")
+    if False:
+        print("Shell scripts created successfully. List as follows:")
+        for script in script_names:
+            print(f"- {os.path.join(dest_dir, script)}")
 
      # Run them in parallel
     parallel_cmd = (
@@ -215,12 +224,23 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
     stdout, stderr = process.communicate()
 
     # Print the return code
-    print(f"Parallel command exited with return code: {process.returncode}")
+    # print(f"Parallel command exited with return code: {process.returncode}")
         
     # If there's an error, print the stderr output
     if process.returncode != 0:
         print("Parallel command found an error")  # Display error output
-    get_output(dest_dir, subdirs)
+
+    winner_strategy = ""
+    for line in stderr.splitlines():
+        if ".sh" in line:
+            winner_strategy += line.split(".sh")[0][2:] + "\n"
+
+    # print("Captured winner strategy output from stderr:")
+    # print(winner_strategy)
+    if False:
+        get_output(dest_dir, subdirs)
+    else:
+        get_winner_output(dest_dir, winner_strategy.strip())
 
 def verify_multi_process(spec, cfg, verbose):
     # Sets up directories and runs multi-process verification using the 'parallel' command
@@ -289,7 +309,6 @@ def run():
     cust = "--cust" in sys.argv
     naive = "--naive" in sys.argv
     verbose = "--verbose" in sys.argv
-    print("Cust is: " , cust)
 
     if multi_process:
         verify_multi_process(spec, cfg, verbose)
