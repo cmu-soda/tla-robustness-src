@@ -106,20 +106,19 @@ def get_all_output(dest_dir, subdirs):
     """
     Print contents from log files
     """
-    if True:
-        print("\n--- Log Outputs ---")
-        for subdir in subdirs:
-            log_file = os.path.join(dest_dir, subdir, f"{subdir}.log")
-            if os.path.exists(log_file):
-                with open(log_file, 'r') as f:
-                    content = f.read().strip()
-                    if content:  # Only print non-empty logs
-                        print(f"\n- Contents of {subdir}/{subdir}.log -:\n")
-                        print(content)
-                    else:
-                        print(f"\n{subdir}.log is empty.")
-            else:
-                print(f"\nLog file {subdir}.log does not exist in {subdir}.")
+    print("\n--- Log Outputs ---")
+    for subdir in subdirs:
+        log_file = os.path.join(dest_dir, subdir, f"{subdir}.log")
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                content = f.read().strip()
+                if content:  # Only print non-empty logs
+                    print(f"\n- Contents of {subdir}/{subdir}.log -:\n")
+                    print(content)
+                else:
+                    print(f"\n{subdir}.log is empty.")
+        else:
+            print(f"\nLog file {subdir}.log does not exist in {subdir}.")
 
 def get_winner_output(dest_dir, subdir):
         log_file = os.path.join(dest_dir, subdir, f"{subdir}.log")
@@ -133,7 +132,7 @@ def get_winner_output(dest_dir, subdir):
         else:
             print(f"\nLog file {subdir}.log does not exist in {subdir}.")
 
-def run_multi_verif_with_parallel(dest_dir, spec, cfg):
+def run_multi_verif_with_parallel(dest_dir, spec, cfg, verbose=False):
     # Get the absolute path to recomp-verify.py using root_dir
     script_path = os.path.join(root_dir, "recomp-verify.py")
 
@@ -201,7 +200,7 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
         # Make the script executable
         os.chmod(script_path, 0o755)
     
-    if False:
+    if verbose:
         print("Shell scripts created successfully. List as follows:")
         for script in script_names:
             print(f"- {os.path.join(dest_dir, script)}")
@@ -226,8 +225,8 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
         if ".sh" in line:
             winner_strategy += line.split(".sh")[0][2:] + "\n"
 
-    if False:
-        get_output(dest_dir, subdirs)
+    if verbose:
+        get_all_output(dest_dir, subdirs)
     else:
         get_winner_output(dest_dir, winner_strategy.strip())
 
@@ -284,7 +283,7 @@ def verify_multi_process(spec, cfg, verbose):
     os.makedirs("naive", exist_ok=True)
 
     # # Run the verification processes in parallel
-    output = run_multi_verif_with_parallel(dest_dir, spec, cfg)
+    output = run_multi_verif_with_parallel(dest_dir, spec, cfg, verbose)
 
 def run():
     # Parse arguments and run the appropriate verification process
