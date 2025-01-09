@@ -304,5 +304,3 @@ def run():
     else:
         verify_single_process(spec, cfg, cust, naive, verbose)
 run()
-
-os._exit(0)  # Exit the script
