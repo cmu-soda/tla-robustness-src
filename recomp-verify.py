@@ -6,13 +6,6 @@ import subprocess
 import sys
 from functools import partial
 
-'''
-TODO
-1. Output of parallel command to display
-2. Clean debugging print statements (add flag)
-3. merge (PR)
-'''
-
 root_dir = os.path.dirname(os.path.abspath(__file__))
 tool = root_dir + "/bin/recomp-verify.jar"
 tlc = root_dir + "/bin/tla2tools.jar"
@@ -223,8 +216,6 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
     process = subprocess.Popen(parallel_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
     stdout, stderr = process.communicate()
 
-    # Print the return code
-    # print(f"Parallel command exited with return code: {process.returncode}")
         
     # If there's an error, print the stderr output
     if process.returncode != 0:
@@ -235,8 +226,6 @@ python3 "/Users/eddie/Research/REU/recomp-verify/recomp-verify.py" \\
         if ".sh" in line:
             winner_strategy += line.split(".sh")[0][2:] + "\n"
 
-    # print("Captured winner strategy output from stderr:")
-    # print(winner_strategy)
     if False:
         get_output(dest_dir, subdirs)
     else:
